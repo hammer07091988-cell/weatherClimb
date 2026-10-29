@@ -156,7 +156,7 @@ footer a{color:var(--accent)}
 
   <div class="scene-wrap">
     <canvas id="scene" data-i18n-aria="sceneAria" aria-label="Вышка с ветром на разных высотах"></canvas>
-    <div class="scene-caption"><div class="t" id="cap-temp">—</div><div class="c" id="cap-cond"></div><div class="p" id="cap-feel"></div><div class="p" id="cap-sun"></div></div>
+    <div class="scene-caption"><div class="t" id="cap-temp">—</div><div class="c" id="cap-cond"></div><div class="p" id="cap-feel"></div><div class="p" id="cap-pop"></div><div class="p" id="cap-sun"></div></div>
   </div>
 
 
@@ -210,6 +210,7 @@ const I18N = {
   unitNote: [u => 'Скорость на вышке в ' + u + ', стрелка показывает, куда дует ветер (север вверху).', u => 'Tower speeds in ' + u + '; the arrow shows where the wind blows to (north is up).'],
   feel: ['Ощущается как ', 'Feels like '], h: [' ч ', ' h '], min: [' мин', ' min'], day: ['день ', 'daylight '],
   notUp: ['солнце ещё не встало', 'the sun is not up yet'], down: ['солнце уже село', 'the sun has set'], inT: ['через ', 'in '],
+  popTxt: ['Вероятность осадков', 'Chance of precipitation'],
   max: ['макс. ', 'max '], noData: ['нет данных', 'no data'], mm: [' мм', ' mm'], cloud: ['облачность ', 'cloud cover '],
   sample: ['пример', 'sample'], seaNear: ['море рядом', 'sea nearby'], noSea: ['моря рядом нет', 'no sea nearby'],
   uvL: [['низкий', 'средний, нужна защита', 'высокий', 'очень высокий', 'экстремальный'], ['low', 'moderate, use protection', 'high', 'very high', 'extreme']],
@@ -256,7 +257,7 @@ function placeNow(){
   const d = new Date(Date.now() + off*1000);
   return {hour: d.getUTCHours() + d.getUTCMinutes()/60, date: d.getUTCFullYear() + '-' + pad(d.getUTCMonth()+1) + '-' + pad(d.getUTCDate())};
 }
-function defaultHour(){ const h = Math.floor(placeNow().hour); return h < 6 ? 9 : Math.min(h + 1, 23); }
+function defaultHour(){ return Math.floor(placeNow().hour); }
 const pad = n => String(n).padStart(2,'0');
 const clamp = (x,a,b) => Math.max(a, Math.min(b, x));
 const lerp = (a,b,t) => a + (b-a)*t;
@@ -288,7 +289,7 @@ function wmo(code){
 }
 
 // ---------- data ----------
-const HOURLY = ['temperature_2m','apparent_temperature','precipitation','weather_code','cloud_cover','wind_gusts_10m','uv_index',
+const HOURLY = ['temperature_2m','apparent_temperature','precipitation','precipitation_probability','weather_code','cloud_cover','wind_gusts_10m','uv_index',
   'wind_speed_10m','wind_speed_80m','wind_speed_120m','wind_speed_180m',
   'wind_direction_10m','wind_direction_80m','wind_direction_120m','wind_direction_180m'];
 
@@ -310,11 +311,19 @@ async function loadAll(place){
   const lats = [0,k,-k,0,0,k,k,-k,-k].map(d => (place.lat + d).toFixed(4));
   const lons = [0,0,0,kl,-kl,kl,-kl,kl,-kl].map(d => (place.lon + d).toFixed(4));
   const e = 'https://api.open-meteo.com/v1/elevation?latitude=' + lats.join(',') + '&longitude=' + lons.join(',');
-  const [fr, mr, er] = await Promise.allSettled([getJSON(f), getJSON(m), getJSON(e)]);
+  // big towns around, from OpenStreetMap: the suburbs of a big city look like a city too
+  const o = 'https://overpass-api.de/api/interpreter?data=' + encodeURIComponent('[out:json][timeout:8];node(around:45000,' + place.lat + ',' + place.lon + ')[place=city][population];out;');
+  const [fr, mr, er, or] = await Promise.allSettled([getJSON(f), getJSON(m), getJSON(e), getJSON(o, 9000)]);
   if (fr.status !== 'fulfilled') return {data: demoData(), marine: demoMarine(), elev:null, demo:true};
   let marine = mr.status === 'fulfilled' ? mr.value : null;
   if (Array.isArray(marine)) marine = marine.find(x => x.hourly && (x.hourly.sea_surface_temperature || []).some(v => v != null)) || null;
-  return {data: fr.value, marine, elev: er.status === 'fulfilled' ? er.value.elevation : null, demo:false};
+  let nearCity = false;
+  if (or.status === 'fulfilled') nearCity = (or.value.elements || []).some(n => {
+    const pop = parseInt(String(n.tags.population).replace(/\D/g, ''), 10) || 0;
+    const km = Math.hypot(n.lat - place.lat, (n.lon - place.lon)*Math.cos(place.lat*Math.PI/180))*111;
+    return (pop >= 500000 && km <= 45) || (pop >= 150000 && km <= 15);
+  });
+  return {data: fr.value, marine, elev: er.status === 'fulfilled' ? er.value.elevation : null, nearCity, demo:false};
 }
 
 function demoData(){
@@ -337,6 +346,7 @@ function demoData(){
       H.temperature_2m.push(tt); H.apparent_temperature.push(tt - v10*0.7);
       H.weather_code.push(code);
       H.precipitation.push(code >= 51 ? (code >= 80 ? 3.2 : 1.1) : 0);
+      H.precipitation_probability.push(code >= 51 ? 70 + slot*8 : code >= 2 ? 15 : 0);
       H.cloud_cover.push(code === 0 ? 5 : code === 1 ? 20 : code === 2 ? 55 : 95);
       H.uv_index.push(Math.max(0, Math.sin((h-7)/10*Math.PI))*(code > 2 ? 0.8 : 2.4));
       H.wind_speed_10m.push(v10); H.wind_speed_80m.push(v10*1.55); H.wind_speed_120m.push(v10*1.72); H.wind_speed_180m.push(v10*1.9);
@@ -355,15 +365,16 @@ function hourOf(s){ const m = /T(\d\d):(\d\d)/.exec(s||''); return m ? (+m[1]) +
 function hhmm(s){ const m = /T(\d\d:\d\d)/.exec(s||''); return m ? m[1] : '—'; }
 function angleLerp(a, b, t){ let d = ((b - a + 540) % 360) - 180; return (a + d*t + 360) % 360; }
 
-// What the land around looks like, from the town's size, the relief within ~13 km and the sea nearby.
+// What the land around looks like, from the town's size, the relief within ~13 km, big cities within 45 km and the sea nearby.
 function detectTerrain(res){
   const water = seaTempAt(res.marine, res.data.hourly.time[12]);
   const el = res.data.elevation ?? (res.elev ? res.elev[0] : 0);
   const relief = res.elev ? Math.max(...res.elev) - Math.min(...res.elev) : 0;
   const lat = Math.abs(state.place.lat);
   if ((state.place.pop || 0) >= 150000) return ['city', 'big town'];
+  if (relief > 350 || (el > 1000 && relief > 150)) return ['mountains', 'relief ' + Math.round(relief) + ' m'];
+  if (res.nearCity) return ['city', 'near a big city'];
   if (water != null) return ['sea', 'sea nearby'];
-  if (el > 1000 || relief > 350) return ['mountains', 'relief ' + Math.round(relief) + ' m'];
   // flat open plains in the farming belts: the Midwest, the steppe, the Pampas
   if (relief < 120 && el < 800 && lat > 25 && lat < 57) return ['field', 'plains'];
   return ['forest', relief > 150 ? 'hills' : 'lowland'];
@@ -428,7 +439,7 @@ function current(){
   return {
     i, hour, sunrise, sunset, riseTxt: hhmm(D.sunrise[state.day]), setTxt: hhmm(D.sunset[state.day]),
     temp: H.temperature_2m[i], feel: H.apparent_temperature ? H.apparent_temperature[i] : null,
-    prec: H.precipitation[i] || 0, code: H.weather_code[i], cloud: H.cloud_cover[i] ?? 50, gust: H.wind_gusts_10m[i],
+    prec: H.precipitation[i] || 0, pop: H.precipitation_probability ? H.precipitation_probability[i] : null, code: H.weather_code[i], cloud: H.cloud_cover[i] ?? 50, gust: H.wind_gusts_10m[i],
     uv: H.uv_index ? H.uv_index[i] : null, uvMax: D.uv_index_max ? D.uv_index_max[state.day] : null,
     w: wmo(H.weather_code[i]), profile: profileAt(i), night: hour < sunrise || hour > sunset,
     terrain, water, lat: state.place.lat, month: +D.time[state.day].slice(5,7) - 1,
@@ -518,6 +529,7 @@ function renderInfo(c){
   $('cap-temp').textContent = tTxt(c.temp);
   $('cap-cond').textContent = LANG === 'en' ? (WMO_EN[c.w.text] || c.w.text) : c.w.text;
   $('cap-feel').textContent = c.feel != null ? say('feel') + tTxt(c.feel) : '';
+  $('cap-pop').textContent = c.pop != null ? '💧 ' + say('popTxt') + ' ' + Math.round(c.pop) + '%' : '';
   $('cap-sun').textContent = say('rise') + ' ' + c.riseTxt + ' · ' + say('set') + ' ' + c.setTxt;
   $('f-rise').textContent = c.riseTxt;
   $('f-set').textContent = c.setTxt;
@@ -532,8 +544,8 @@ function renderInfo(c){
     $('f-uv').innerHTML = '<span class="uv-dot" style="background:' + col + '"></span>' + c.uv.toFixed(1);
     $('f-uvtxt').textContent = txt + (c.uvMax != null ? ', ' + say('max') + c.uvMax.toFixed(1) : '');
   } else { $('f-uv').textContent = '—'; $('f-uvtxt').textContent = say('noData'); }
-  $('f-prec').textContent = c.prec.toFixed(1) + say('mm');
-  $('f-cloud').textContent = say('cloud') + Math.round(c.cloud) + '%';
+  $('f-prec').textContent = c.pop != null ? Math.round(c.pop) + '%' : c.prec.toFixed(1) + say('mm');
+  $('f-cloud').textContent = (c.pop != null ? c.prec.toFixed(1) + say('mm') + ', ' : '') + say('cloud') + Math.round(c.cloud) + '%';
   $('f-gust').textContent = c.gust != null ? fmtV(c.gust) + ' ' + unitTxt() : '—';
   if (c.water != null){ $('f-water').textContent = tTxt(c.water); $('f-watertxt').textContent = say(state.demo ? 'sample' : 'seaNear'); }
   else { $('f-water').textContent = '—'; $('f-watertxt').textContent = say('noSea'); }
@@ -591,7 +603,7 @@ $('search-form').addEventListener('submit', async e => {
 async function placeName(lat, lon){
   try {
     const j = await getJSON('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=' + lat + '&longitude=' + lon + '&localityLanguage=' + LANG, 6000);
-    return j.city || j.locality || j.principalSubdivision || null;
+    return j.locality || j.city || j.principalSubdivision || null;
   } catch(e){ return null; }
 }
 function locate(auto){
@@ -606,7 +618,7 @@ function locate(auto){
   }, () => {
     $('geo-btn').textContent = say('geo');
     if (!auto) showBanner(say('geoFail'));
-  }, {timeout:12000, maximumAge:300000});
+  }, {timeout:15000, maximumAge:60000, enableHighAccuracy:true});
 }
 $('geo-btn').onclick = () => locate(false);
 
@@ -1379,6 +1391,14 @@ const scene = (() => {
 applyLang();
 load();
 if (state.place.geo || !store.get('place', null)) locate(true);
+// back from the background after a while: jump to now and fetch a fresh forecast (and position)
+let hiddenAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden){ hiddenAt = Date.now(); return; }
+  if (Date.now() - hiddenAt < 5*60*1000) return;
+  state.day = 0; state.hour = null;
+  load(); if (state.place.geo) locate(true);
+});
 })();
 </script>
 
