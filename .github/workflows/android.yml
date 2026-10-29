@@ -1,0 +1,93 @@
+name: Android APK
+
+# Builds weatherClimb.apk and publishes it on the "android" release.
+# The app opens the live site, so web updates reach phones without a new APK;
+# a bundled copy of the site is shown when there is no connection.
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/android.yml', 'android-assets/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Create the Capacitor project
+        run: |
+          mkdir -p app/www/img
+          cp index.html manifest.webmanifest icon-192.png icon-512.png app/www/
+          cp img/*.webp app/www/img/
+          cd app
+          npm init -y >/dev/null
+          npm install @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7
+          cat > capacitor.config.json <<'JSON'
+          {
+            "appId": "com.weatherclimb.app",
+            "appName": "weatherClimb",
+            "webDir": "www",
+            "server": {
+              "url": "https://hammer07091988-cell.github.io/weatherClimb/",
+              "errorPath": "index.html",
+              "androidScheme": "https"
+            }
+          }
+          JSON
+          npx cap add android
+
+      - name: Permissions, icons and version
+        working-directory: app/android
+        run: |
+          sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />#' app/src/main/AndroidManifest.xml
+          grep -q ACCESS_FINE_LOCATION app/src/main/AndroidManifest.xml
+          rm -rf app/src/main/res/mipmap-anydpi-v26
+          cp -r ../../android-assets/res/* app/src/main/res/
+          sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"1.${{ github.run_number }}\"/" app/build.gradle
+
+      - name: Build
+        working-directory: app/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      # A signing key kept in the ANDROID_KEYSTORE_B64 / ANDROID_KEYSTORE_PASS secrets lets new APKs install over old ones.
+      # Without them each build gets a fresh key (the app still works; updating the APK then means reinstalling).
+      - name: Sign
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > release.keystore
+          else
+            KS_PASS=$(openssl rand -hex 16)
+            keytool -genkeypair -keystore release.keystore -alias weatherclimb -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$KS_PASS" -keypass "$KS_PASS" -dname "CN=weatherClimb"
+          fi
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
+          $BT/zipalign -f -p 4 app/android/app/build/outputs/apk/release/app-release-unsigned.apk aligned.apk
+          $BT/apksigner sign --ks release.keystore --ks-key-alias weatherclimb --ks-pass env:KS_PASS --key-pass env:KS_PASS --out weatherClimb.apk aligned.apk
+          $BT/apksigner verify weatherClimb.apk
+          rm release.keystore
+
+      - name: Publish on the "android" release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete android --yes --cleanup-tag || true
+          gh release create android weatherClimb.apk --title "weatherClimb для Android" \
+            --notes "Скачайте weatherClimb.apk на телефон Android и откройте его, чтобы установить. Сборка ${{ github.run_number }}."
