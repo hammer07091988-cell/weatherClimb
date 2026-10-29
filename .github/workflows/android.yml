@@ -78,6 +78,11 @@ jobs:
           KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
         run: |
           if [ -n "$KS_B64" ]; then
+            # the whole signing-secrets.txt pasted into one secret works too: read both values from it
+            if printf '%s' "$KS_B64" | grep -q 'ANDROID_KEYSTORE_PASS'; then
+              KS_PASS=$(printf '%s\n' "$KS_B64" | grep -A1 'ANDROID_KEYSTORE_PASS' | tail -1)
+              KS_B64=$(printf '%s\n' "$KS_B64" | grep -A1 'ANDROID_KEYSTORE_B64' | tail -1)
+            fi
             # tolerate spaces and line breaks picked up when the secrets were pasted
             KS_PASS=$(printf '%s' "$KS_PASS" | tr -d ' \r\n\t')
             printf '%s' "$KS_B64" | tr -d ' \r\n\t' | base64 -d > release.keystore \
