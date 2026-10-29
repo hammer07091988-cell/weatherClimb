@@ -15,6 +15,9 @@ permissions:
 jobs:
   apk:
     runs-on: ubuntu-latest
+    env:
+      # 1.0, 1.1, 1.2 ... one step per build; the APK file carries the same number
+      VERSION: 1.${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
 
@@ -59,7 +62,7 @@ jobs:
           sed -i '/<style name="AppTheme.NoActionBar"/a\        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>' app/src/main/res/values/styles.xml
           grep -q windowOptOutEdgeToEdgeEnforcement app/src/main/res/values/styles.xml
           cp -r ../../android-assets/res/* app/src/main/res/
-          sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"1.${{ github.run_number }}\"/" app/build.gradle
+          sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"$VERSION\"/" app/build.gradle
 
       - name: Build
         working-directory: app/android
@@ -83,8 +86,8 @@ jobs:
           fi
           BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
           $BT/zipalign -f -p 4 app/android/app/build/outputs/apk/release/app-release-unsigned.apk aligned.apk
-          $BT/apksigner sign --ks release.keystore --ks-key-alias weatherclimb --ks-pass env:KS_PASS --key-pass env:KS_PASS --out weatherClimb.apk aligned.apk
-          $BT/apksigner verify weatherClimb.apk
+          $BT/apksigner sign --ks release.keystore --ks-key-alias weatherclimb --ks-pass env:KS_PASS --key-pass env:KS_PASS --out weatherClimb-$VERSION.apk aligned.apk
+          $BT/apksigner verify weatherClimb-$VERSION.apk
           rm release.keystore
 
       - name: Publish on the "android" release
@@ -92,5 +95,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete android --yes --cleanup-tag || true
-          gh release create android weatherClimb.apk --title "weatherClimb для Android" \
-            --notes "Скачайте weatherClimb.apk на телефон Android и откройте его, чтобы установить. Сборка ${{ github.run_number }}."
+          gh release create android weatherClimb-$VERSION.apk --title "weatherClimb $VERSION для Android" \
+            --notes "Скачайте weatherClimb-$VERSION.apk на телефон Android и откройте его, чтобы установить."
