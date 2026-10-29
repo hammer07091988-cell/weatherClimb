@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_label">Ветер на вышке</string>
-    <string name="widget_label">Ветер на вышке 4×2</string>
+    <string name="widget_label_main">Ветер на вышке 4×2</string>
     <string name="widget_desc">Погода и вышка с ветром на 10, 40, 80 и 120 м</string>
     <string name="widget_label_mini">Ветер на вышке 1×1</string>
     <string name="widget_desc_mini">Температура и ветер на 120 м</string>

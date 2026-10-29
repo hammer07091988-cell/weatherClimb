@@ -71,7 +71,7 @@ jobs:
           r = ''
           for cls, suf in [('WindWidget', ''), ('WidgetMini', '_mini'), ('WidgetSmall', '_small'),
                            ('WidgetSquare', '_square'), ('WidgetWide', '_wide'), ('WidgetBig', '_big')]:
-              r += f"""        <receiver android:name=".{cls}" android:exported="false" android:label="@string/widget_label{suf}">
+              r += f"""        <receiver android:name=".{cls}" android:exported="false" android:label="@string/widget_label{suf or '_main'}">
                       <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
                       <meta-data android:name="android.appwidget.provider" android:resource="@xml/wind_widget_info{suf}" />
                   </receiver>

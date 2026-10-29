@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_label">Wind on the tower</string>
-    <string name="widget_label">Wind on the tower 4×2</string>
+    <string name="widget_label_main">Wind on the tower 4×2</string>
     <string name="widget_desc">Weather and the tower with the wind at 10, 40, 80 and 120 m</string>
     <string name="widget_label_mini">Wind on the tower 1×1</string>
     <string name="widget_desc_mini">Temperature and the wind at 120 m</string>
