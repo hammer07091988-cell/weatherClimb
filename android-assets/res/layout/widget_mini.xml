@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 1x1: temperature and the wind at 120 m. Text sizes and the pictures are set to the real widget size in WindWidget.java. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/widget_bg_day"
+    android:padding="6dp">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal"
+        android:gravity="center">
+        <TextView android:id="@+id/w_temp" style="@style/WidgetText"
+            android:textStyle="bold" android:includeFontPadding="false" />
+        <TextView android:id="@+id/w_icon" style="@style/WidgetText"
+            android:layout_marginStart="2dp" />
+    </LinearLayout>
+    <ImageView
+        android:id="@+id/w_pills"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:scaleType="fitCenter"
+        android:contentDescription="@string/widget_label" />
+</LinearLayout>

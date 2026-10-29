@@ -1,5 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_label">Ветер на вышке</string>
-    <string name="widget_desc">Погода сейчас и ветер на 10, 40, 80 и 120 м</string>
+    <string name="widget_label">Ветер на вышке 4×2</string>
+    <string name="widget_desc">Погода и вышка с ветром на 10, 40, 80 и 120 м</string>
+    <string name="widget_label_mini">Ветер на вышке 1×1</string>
+    <string name="widget_desc_mini">Температура и ветер на 120 м</string>
+    <string name="widget_label_small">Ветер на вышке 2×1</string>
+    <string name="widget_desc_small">Температура и ветер на 120 и 10 м</string>
+    <string name="widget_label_square">Ветер на вышке 2×2</string>
+    <string name="widget_desc_square">Погода и вышка, компактно</string>
+    <string name="widget_label_wide">Ветер на вышке 4×1</string>
+    <string name="widget_desc_wide">Погода и ветер на четырёх высотах в одну строку</string>
+    <string name="widget_label_big">Ветер на вышке 4×3</string>
+    <string name="widget_desc_big">Погода, вышка и ветер на ближайшие 6 часов</string>
 </resources>

@@ -67,15 +67,19 @@ jobs:
           python3 - <<'PY'
           p = 'app/src/main/AndroidManifest.xml'
           s = open(p).read()
-          r = """        <receiver android:name=".WindWidget" android:exported="false" android:label="@string/widget_label">
+          # one receiver per widget size; WindWidget (4x2) keeps its name so a widget already on the screen stays
+          r = ''
+          for cls, suf in [('WindWidget', ''), ('WidgetMini', '_mini'), ('WidgetSmall', '_small'),
+                           ('WidgetSquare', '_square'), ('WidgetWide', '_wide'), ('WidgetBig', '_big')]:
+              r += f"""        <receiver android:name=".{cls}" android:exported="false" android:label="@string/widget_label{suf}">
                       <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
-                      <meta-data android:name="android.appwidget.provider" android:resource="@xml/wind_widget_info" />
+                      <meta-data android:name="android.appwidget.provider" android:resource="@xml/wind_widget_info{suf}" />
                   </receiver>
           """
           s = s.replace('</application>', r + '    </application>', 1)
           open(p, 'w').write(s)
           PY
-          grep -q WindWidget app/src/main/AndroidManifest.xml
+          grep -q WidgetBig app/src/main/AndroidManifest.xml
           sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"$VERSION\"/" app/build.gradle
 
       - name: Build

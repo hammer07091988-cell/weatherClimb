@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 4x3: the 4x2 widget with the next six hours below. Text sizes and the pictures are set to the real widget size in WindWidget.java. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/widget_bg_day"
+    android:padding="10dp">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1.7"
+        android:orientation="horizontal">
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center_vertical">
+            <TextView android:id="@+id/w_place" style="@style/WidgetText"
+                android:maxLines="1" android:ellipsize="end" />
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+                <TextView android:id="@+id/w_temp" style="@style/WidgetText"
+                    android:textStyle="bold" android:includeFontPadding="false" />
+                <TextView android:id="@+id/w_icon" style="@style/WidgetText"
+                    android:layout_marginStart="4dp" />
+            </LinearLayout>
+            <TextView android:id="@+id/w_cond" style="@style/WidgetText"
+                android:maxLines="2" />
+            <TextView android:id="@+id/w_pop" style="@style/WidgetText" />
+            <TextView android:id="@+id/w_time" style="@style/WidgetText"
+                android:layout_marginTop="2dp" android:alpha="0.8" />
+        </LinearLayout>
+        <ImageView
+            android:id="@+id/w_tower"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1.15"
+            android:scaleType="fitCenter"
+            android:contentDescription="@string/widget_label" />
+    </LinearLayout>
+    <ImageView
+        android:id="@+id/w_hours"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:scaleType="fitCenter"
+        android:contentDescription="@string/widget_label" />
+</LinearLayout>
