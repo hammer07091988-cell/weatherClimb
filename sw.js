@@ -1,4 +1,4 @@
-const CACHE = 'wc-1793237481';
+const CACHE = 'wc-1793237938';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png',
   'img/tower.webp', 'img/crew1.webp', 'img/crew2.webp', 'img/crew3.webp', 'img/crew4.webp'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); self.skipWaiting(); });

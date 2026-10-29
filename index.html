@@ -36,6 +36,11 @@ body{font-family:var(--body);font-size:15px;line-height:1.45;
   padding-left:max(var(--gut), env(safe-area-inset-left, 0px));padding-right:max(var(--gut), env(safe-area-inset-right, 0px));
   padding-top:max(14px, calc(env(safe-area-inset-top, 0px) + 8px));padding-bottom:max(24px, env(safe-area-inset-bottom, 0px))}
 .credit{font-size:10px;text-align:center;opacity:.6}
+.ptr{position:fixed;left:50%;top:calc(env(safe-area-inset-top, 0px) + 6px);z-index:5;width:38px;height:38px;margin-left:-19px;border-radius:50%;
+  background:var(--surface);border:1px solid var(--line);box-shadow:0 4px 14px rgba(0,0,0,.18);display:grid;place-items:center;
+  font-size:20px;font-weight:700;color:var(--accent);opacity:0;transform:translateY(-50px);pointer-events:none}
+.ptr.spin span{animation:ptrspin .8s linear infinite}
+@keyframes ptrspin{to{transform:rotate(360deg)}}
 .credit a{color:var(--muted)}
 .app{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
 header{display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -48,7 +53,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 .place{display:flex;gap:6px;align-items:center;min-width:0;flex:1}
-.place-name{font-weight:700;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.place-name{font:inherit;font-weight:700;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;border:0;background:transparent;color:inherit;padding:4px 2px;text-align:left}
+.place-name::after{content:" ▾";font-size:12px;color:var(--muted)}
 .star{border:0;background:transparent;font-size:24px;line-height:1;padding:2px 4px;color:var(--muted)}
 .star[aria-pressed="true"]{color:var(--star)}
 .actions{display:flex;gap:6px}
@@ -113,6 +119,7 @@ footer{font-size:12px;color:var(--muted)}
 footer a{color:var(--accent)}
 </style>
 
+<div class="ptr" id="ptr" aria-hidden="true"><span>↻</span></div>
 <div class="app">
   <header>
     <h1 data-i18n="title">Ветер по высотам</h1>
@@ -131,18 +138,16 @@ footer a{color:var(--accent)}
   <div class="row">
     <div class="place">
       <button class="star" id="fav-btn" aria-pressed="false" aria-label="Добавить место в избранное">☆</button>
-      <span class="place-name" id="place-name">Москва</span>
+      <button class="place-name" id="place-name" aria-expanded="false">Москва</button>
     </div>
     <div class="actions">
       <button class="btn" id="geo-btn">📍 Где я</button>
-      <button class="btn" id="search-toggle" data-i18n="find">Найти</button>
     </div>
   </div>
 
   <div class="search" id="search" hidden>
     <form class="search-row" id="search-form">
-      <input id="search-input" type="search" data-i18n-ph="searchPh" placeholder="Город, посёлок, курорт" autocomplete="off">
-      <button class="btn primary" type="submit" data-i18n="find">Найти</button>
+      <input id="search-input" type="search" data-i18n-ph="searchPh" placeholder="Город, посёлок, курорт" autocomplete="off" enterkeyhint="search">
     </form>
     <div class="results" id="results"></div>
   </div>
@@ -311,19 +316,19 @@ async function loadAll(place){
   const lats = [0,k,-k,0,0,k,k,-k,-k].map(d => (place.lat + d).toFixed(4));
   const lons = [0,0,0,kl,-kl,kl,-kl,kl,-kl].map(d => (place.lon + d).toFixed(4));
   const e = 'https://api.open-meteo.com/v1/elevation?latitude=' + lats.join(',') + '&longitude=' + lons.join(',');
-  // big towns around, from OpenStreetMap: the suburbs of a big city look like a city too
-  const o = 'https://overpass-api.de/api/interpreter?data=' + encodeURIComponent('[out:json][timeout:8];node(around:45000,' + place.lat + ',' + place.lon + ')[place=city][population];out;');
-  const [fr, mr, er, or] = await Promise.allSettled([getJSON(f), getJSON(m), getJSON(e), getJSON(o, 9000)]);
+  // the big city this spot belongs to (a suburb of Philadelphia belongs to Philadelphia) and how many people live there
+  const metro = (async () => {
+    const j = await getJSON('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=' + place.lat + '&longitude=' + place.lon + '&localityLanguage=en', 6000);
+    let best = 0;
+    for (const n of new Set([j.city, j.locality].filter(Boolean))) best = Math.max(best, await townPopulation(n, place.lat, place.lon, 0.6));
+    return best;
+  })();
+  const [fr, mr, er, mp] = await Promise.allSettled([getJSON(f), getJSON(m), getJSON(e), Promise.race([metro, new Promise(r => setTimeout(() => r(0), 5000))])]);
   if (fr.status !== 'fulfilled') return {data: demoData(), marine: demoMarine(), elev:null, demo:true};
   let marine = mr.status === 'fulfilled' ? mr.value : null;
   if (Array.isArray(marine)) marine = marine.find(x => x.hourly && (x.hourly.sea_surface_temperature || []).some(v => v != null)) || null;
-  let nearCity = false;
-  if (or.status === 'fulfilled') nearCity = (or.value.elements || []).some(n => {
-    const pop = parseInt(String(n.tags.population).replace(/\D/g, ''), 10) || 0;
-    const km = Math.hypot(n.lat - place.lat, (n.lon - place.lon)*Math.cos(place.lat*Math.PI/180))*111;
-    return (pop >= 500000 && km <= 45) || (pop >= 150000 && km <= 15);
-  });
-  return {data: fr.value, marine, elev: er.status === 'fulfilled' ? er.value.elevation : null, nearCity, demo:false};
+  const metroPop = mp.status === 'fulfilled' ? mp.value : 0;
+  return {data: fr.value, marine, elev: er.status === 'fulfilled' ? er.value.elevation : null, metroPop, demo:false};
 }
 
 function demoData(){
@@ -365,7 +370,7 @@ function hourOf(s){ const m = /T(\d\d):(\d\d)/.exec(s||''); return m ? (+m[1]) +
 function hhmm(s){ const m = /T(\d\d:\d\d)/.exec(s||''); return m ? m[1] : '—'; }
 function angleLerp(a, b, t){ let d = ((b - a + 540) % 360) - 180; return (a + d*t + 360) % 360; }
 
-// What the land around looks like, from the town's size, the relief within ~13 km, big cities within 45 km and the sea nearby.
+// What the land around looks like, from the town's size, the relief within ~13 km, the big city it belongs to and the sea nearby.
 function detectTerrain(res){
   const water = seaTempAt(res.marine, res.data.hourly.time[12]);
   const el = res.data.elevation ?? (res.elev ? res.elev[0] : 0);
@@ -373,19 +378,19 @@ function detectTerrain(res){
   const lat = Math.abs(state.place.lat);
   if ((state.place.pop || 0) >= 150000) return ['city', 'big town'];
   if (relief > 350 || (el > 1000 && relief > 150)) return ['mountains', 'relief ' + Math.round(relief) + ' m'];
-  if (res.nearCity) return ['city', 'near a big city'];
+  if (res.metroPop >= 300000) return ['city', 'part of a big city'];
   if (water != null) return ['sea', 'sea nearby'];
   // flat open plains in the farming belts: the Midwest, the steppe, the Pampas
   if (relief < 120 && el < 800 && lat > 25 && lat < 57) return ['field', 'plains'];
   return ['forest', relief > 150 ? 'hills' : 'lowland'];
 }
 // The size of the town nearest to a point, so a located phone knows it is in a city.
-async function townPopulation(name, lat, lon){
+async function townPopulation(name, lat, lon, maxDeg = 0.35){
   if (!name) return 0;
   try {
     const j = await getJSON('https://geocoding-api.open-meteo.com/v1/search?count=10&language=en&name=' + encodeURIComponent(name), 6000);
     const near = (j.results || []).map(r => ({r, d: Math.hypot(r.latitude - lat, (r.longitude - lon)*Math.cos(lat*Math.PI/180))})).sort((a, b) => a.d - b.d)[0];
-    return near && near.d < 0.35 ? (near.r.population || 0) : 0;
+    return near && near.d < maxDeg ? (near.r.population || 0) : 0;
   } catch(e){ return 0; }
 }
 function seaTempAt(marine, time){
@@ -579,26 +584,35 @@ $('fav-btn').onclick = () => {
   if (k >= 0) state.favs.splice(k, 1); else state.favs.push({name:state.place.name, lat:state.place.lat, lon:state.place.lon, pop:state.place.pop || 0});
   store.set('favs', state.favs); renderPlaceBar();
 };
-$('search-toggle').onclick = () => { const s = $('search'); s.hidden = !s.hidden; if (!s.hidden) $('search-input').focus(); };
-$('search-form').addEventListener('submit', async e => {
-  e.preventDefault();
-  const q = $('search-input').value.trim(); if (!q) return;
-  const box = $('results'); box.innerHTML = '<span class="note">' + say('searching') + '</span>';
+function toggleSearch(open){
+  const sr = $('search'); sr.hidden = !open; $('place-name').setAttribute('aria-expanded', String(open));
+  if (open){ $('search-input').value = ''; $('results').innerHTML = ''; $('search-input').focus(); }
+}
+$('place-name').onclick = () => toggleSearch($('search').hidden);
+// suggestions appear while typing; the newest request wins
+let searchSeq = 0, searchTimer = 0;
+async function runSearch(){
+  const q = $('search-input').value.trim(), box = $('results'), seq = ++searchSeq;
+  if (q.length < 2){ box.innerHTML = ''; return; }
+  box.innerHTML = '<span class="note">' + say('searching') + '</span>';
   try {
     const j = await getJSON('https://geocoding-api.open-meteo.com/v1/search?count=8&language=' + LANG + '&name=' + encodeURIComponent(q));
+    if (seq !== searchSeq) return;
     box.innerHTML = '';
     if (!j.results || !j.results.length){ box.innerHTML = '<span class="note">' + say('notFound') + '</span>'; return; }
     j.results.forEach(p => {
       const b = document.createElement('button');
       const sm = document.createElement('small'); sm.textContent = [p.admin1, p.country].filter(Boolean).join(', ');
       b.append(p.name + ' ', sm);
-      b.onclick = () => setPlace({name:p.name, lat:p.latitude, lon:p.longitude, pop:p.population || 0});
+      b.onclick = () => { toggleSearch(false); setPlace({name:p.name, lat:p.latitude, lon:p.longitude, pop:p.population || 0}); };
       box.appendChild(b);
     });
   } catch(err){
-    box.innerHTML = '<span class="note">' + say('noSearch') + '</span>';
+    if (seq === searchSeq) box.innerHTML = '<span class="note">' + say('noSearch') + '</span>';
   }
-});
+}
+$('search-input').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 250); });
+$('search-form').addEventListener('submit', e => { e.preventDefault(); clearTimeout(searchTimer); runSearch(); });
 
 async function placeName(lat, lon){
   try {
@@ -625,7 +639,7 @@ $('geo-btn').onclick = () => locate(false);
 function showBanner(t){ const b = $('banner'); b.textContent = t; b.hidden = !t; }
 
 async function setPlace(p){
-  state.place = p; $('search').hidden = true;
+  state.place = p; toggleSearch(false);
   store.set('place', p);
   await load();
 }
@@ -1391,6 +1405,22 @@ const scene = (() => {
 applyLang();
 load();
 if (state.place.geo || !store.get('place', null)) locate(true);
+// pull the page down from the very top to refresh: back to now, fresh forecast and position
+(() => {
+  const el = $('ptr'), arrow = el.firstChild;
+  let y0 = null, pull = 0, busy = false;
+  const show = d => { el.style.transform = 'translateY(' + (Math.min(d, 90) - 50) + 'px)'; el.style.opacity = Math.min(1, d/60); arrow.style.transform = 'rotate(' + d*3 + 'deg)'; };
+  addEventListener('touchstart', e => { y0 = !busy && scrollY <= 0 && $('search').hidden ? e.touches[0].clientY : null; pull = 0; }, {passive:true});
+  addEventListener('touchmove', e => { if (y0 == null) return; pull = Math.max(0, (e.touches[0].clientY - y0)*0.55); show(pull); }, {passive:true});
+  addEventListener('touchend', async () => {
+    if (y0 == null) return; y0 = null;
+    if (pull < 65){ el.style.transition = 'transform .2s, opacity .2s'; show(0); setTimeout(() => el.style.transition = '', 220); return; }
+    busy = true; show(70); el.classList.add('spin');
+    state.day = 0; state.hour = null;
+    await load(); if (state.place.geo) locate(true);
+    el.classList.remove('spin'); el.style.transition = 'transform .2s, opacity .2s'; show(0); setTimeout(() => el.style.transition = '', 220); busy = false;
+  });
+})();
 // back from the background after a while: jump to now and fetch a fresh forecast (and position)
 let hiddenAt = 0;
 document.addEventListener('visibilitychange', () => {
