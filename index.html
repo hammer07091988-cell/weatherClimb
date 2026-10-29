@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -30,9 +30,13 @@
   --bg:#0c131c; --surface:#151f2b; --fg:#e6edf5; --muted:#93a3b5; --line:#263445;
   --accent:#5aa2ff; --accent-ink:#071423; --star:#ffc53d; --warn-bg:#3a2e0c; --warn-fg:#f3dc96; color-scheme:dark}
 [hidden]{display:none!important}
-html,body{background:var(--bg);color:var(--fg)}
+html,body{background:var(--bg);color:var(--fg);touch-action:manipulation;-webkit-text-size-adjust:100%;overscroll-behavior-y:none}
+:root{--gut:12px}
 body{font-family:var(--body);font-size:15px;line-height:1.45;
-  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:12px 32px}
+  padding-left:max(var(--gut), env(safe-area-inset-left, 0px));padding-right:max(var(--gut), env(safe-area-inset-right, 0px));
+  padding-top:max(14px, calc(env(safe-area-inset-top, 0px) + 8px));padding-bottom:max(24px, env(safe-area-inset-bottom, 0px))}
+.credit{font-size:10px;text-align:center;opacity:.6}
+.credit a{color:var(--muted)}
 .app{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
 header{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .toggles{display:flex;gap:8px;flex-shrink:0}
@@ -68,9 +72,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .seg button small{font-family:var(--mono);font-weight:500;font-size:11px;color:var(--muted)}
 .seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
 .seg button[aria-pressed="true"] small{color:inherit;opacity:.85}
-.scene-wrap{position:relative;border-radius:18px;overflow:hidden;background:#24384f;box-shadow:0 6px 24px rgba(10,30,60,.18)}
+.scene-wrap{position:relative;overflow:hidden;background:#24384f;margin-inline:calc(-1*var(--gut))}
 canvas{display:block;width:100%;touch-action:manipulation}
-.scene-caption{position:absolute;left:12px;top:10px;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.5);pointer-events:none}
+.scene-caption{position:absolute;left:0;top:0;padding:12px 40px 34px 14px;color:#fff;pointer-events:none;
+  text-shadow:0 1px 2px rgba(0,0,0,.55),0 0 10px rgba(0,0,0,.35);
+  background:radial-gradient(120% 100% at 0 0, rgba(8,18,34,.5), rgba(8,18,34,.28) 55%, rgba(8,18,34,0) 80%)}
 .scene-caption .t{font-family:var(--display);font-size:32px;font-weight:700;line-height:1}
 .scene-caption .c{font-size:13px;font-weight:700;margin-top:4px}
 .scene-caption .p{font-size:12px;font-weight:600;opacity:.9}
@@ -90,9 +96,15 @@ canvas{display:block;width:100%;touch-action:manipulation}
 .spd{display:inline-block;min-width:44px;text-align:center;border-radius:999px;padding:1px 8px;color:#0d1b2a;font-weight:700}
 .arrow{display:inline-block;width:14px;text-align:center}
 .est{color:var(--muted);font-size:12px}
-.hour-row{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:700;color:var(--muted)}
-.hour-row input{flex:1;min-width:0;accent-color:var(--accent)}
-.hour-row output{font-family:var(--mono);color:var(--fg);min-width:44px;text-align:right}
+.hours{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-inline:calc(-1*var(--gut));padding:2px var(--gut);scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+.hours::-webkit-scrollbar{display:none}
+.hours button{flex:none;width:58px;border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:7px 0 6px;display:flex;flex-direction:column;align-items:center;gap:2px;scroll-snap-align:center}
+.hours button .hh{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.hours button .ic{font-size:18px;line-height:1.2}
+.hours button .tt{font-weight:700;font-size:14px}
+.hours button .ww{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.hours button[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.hours button[aria-selected="true"] .hh,.hours button[aria-selected="true"] .ww{color:inherit;opacity:.85}
 .scroller{mask-image:linear-gradient(90deg,#000 85%,transparent);-webkit-mask-image:linear-gradient(90deg,#000 85%,transparent);padding-right:24px}
 .unit{display:flex;gap:4px}
 .unit button{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:3px 8px;font-size:12px;font-weight:700}
@@ -140,16 +152,13 @@ footer a{color:var(--accent)}
   <div class="banner" id="banner" hidden></div>
 
   <div class="scroller" id="days"></div>
-  <div class="seg" id="slots"></div>
-  <div class="hour-row"><label for="hour" data-i18n="hour">Час</label><input id="hour" type="range" min="0" max="23" step="1" value="12"><output id="hour-out">12:00</output></div>
+  <div class="hours" id="hours" role="listbox" data-i18n-aria="hour" aria-label="Час"></div>
 
-  <p class="note" id="unit-note"></p>
   <div class="scene-wrap">
     <canvas id="scene" data-i18n-aria="sceneAria" aria-label="Вышка с ветром на разных высотах"></canvas>
     <div class="scene-caption"><div class="t" id="cap-temp">—</div><div class="c" id="cap-cond"></div><div class="p" id="cap-feel"></div><div class="p" id="cap-sun"></div></div>
   </div>
 
-  <div class="scroller" id="terrain"><span class="label" data-i18n="terrain">Местность</span></div>
 
   <div class="facts">
     <div class="stat"><div class="k" data-i18n="rise">Восход</div><div class="v" id="f-rise">—</div><div class="s" id="f-daylen"></div></div>
@@ -167,9 +176,8 @@ footer a{color:var(--accent)}
       <tbody id="levels"></tbody>
     </table>
   </div>
-  <p class="note" data-i18n="modelNote">Модель даёт ветер на 10, 80 и 120 м. Значения у земли, на 20 и 40 м рассчитаны по профилю ветра между ними и помечены знаком ≈.</p>
 
-  <footer data-i18n-html="footer">Прогноз, УФ и температура моря: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>. Высоты на вышке показаны в сжатом масштабе, чтобы нижние уровни не слипались.</footer>
+  <footer class="credit"><a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a></footer>
 </div>
 
 <script>
@@ -210,7 +218,7 @@ const I18N = {
   noGeo: ['Это устройство не сообщает своё место. Найдите город через поиск.', 'This device does not share its location. Find your town with search.'],
   geoFail: ['Не получилось узнать, где вы. Разрешите доступ к геопозиции для этой страницы или найдите город через поиск.', 'Could not get your location. Allow location access for this page or find your town with search.'],
   myPlace: ['Моё место', 'My location'],
-  demo: ['Нет связи с сервером прогноза, поэтому показан пример погоды. Переключайте местность ниже, чтобы посмотреть все виды.', 'No connection to the forecast server, so sample weather is shown. Switch the terrain below to see every scene.']
+  demo: ['Нет связи с сервером прогноза, поэтому показан пример погоды.', 'No connection to the forecast server, so sample weather is shown.']
 };
 const WMO_EN = {'Ясно':'Clear', 'Преимущественно ясно':'Mostly clear', 'Переменная облачность':'Partly cloudy', 'Пасмурно':'Overcast', 'Туман':'Fog',
   'Морось':'Drizzle', 'Ледяная морось':'Freezing drizzle', 'Небольшой дождь':'Light rain', 'Дождь':'Rain', 'Сильный дождь':'Heavy rain',
@@ -228,7 +236,6 @@ function applyLang(){
   document.getElementById('l-en').setAttribute('aria-pressed', String(LANG === 'en'));
   document.getElementById('geo-btn').textContent = say('geo');
 }
-const SLOTS = [{hour:9}, {hour:14}, {hour:19}];
 const TERRAINS = ['auto','forest','mountains','sea','city','field'];
 const DEFAULT_PLACE = {name:'Москва', lat:55.7558, lon:37.6173, pop:12000000};
 
@@ -239,7 +246,7 @@ const store = {
 
 const state = {
   place: store.get('place', DEFAULT_PLACE), favs: store.get('favs', []), unit: store.get('unit2', 'kmh'),
-  terrainPick: store.get('terrain', 'auto'), autoTerrain: 'forest', terrainWhy: '',
+  terrainPick: new URLSearchParams(location.search).get('terrain') || 'auto', autoTerrain: 'forest', terrainWhy: '',
   data:null, marine:null, demo:false, day:0, hour:null, sel:1
 };
 
@@ -348,15 +355,27 @@ function hourOf(s){ const m = /T(\d\d):(\d\d)/.exec(s||''); return m ? (+m[1]) +
 function hhmm(s){ const m = /T(\d\d:\d\d)/.exec(s||''); return m ? m[1] : '—'; }
 function angleLerp(a, b, t){ let d = ((b - a + 540) % 360) - 180; return (a + d*t + 360) % 360; }
 
+// What the land around looks like, from the town's size, the relief within ~13 km and the sea nearby.
 function detectTerrain(res){
   const water = seaTempAt(res.marine, res.data.hourly.time[12]);
   const el = res.data.elevation ?? (res.elev ? res.elev[0] : 0);
   const relief = res.elev ? Math.max(...res.elev) - Math.min(...res.elev) : 0;
-  if (water != null) return ['sea', 'рядом море'];
-  if (el > 1100 || relief > 450) return ['mountains', 'перепад высот ' + Math.round(relief) + ' м'];
-  if ((state.place.pop || 0) > 400000) return ['city', 'крупный город'];
-  if (relief < 60 && el < 400 && Math.abs(state.place.lat) < 55 && Math.abs(state.place.lat) > 40) return ['field', 'равнина'];
-  return ['forest', relief > 150 ? 'холмы' : 'равнина'];
+  const lat = Math.abs(state.place.lat);
+  if ((state.place.pop || 0) >= 150000) return ['city', 'big town'];
+  if (water != null) return ['sea', 'sea nearby'];
+  if (el > 1000 || relief > 350) return ['mountains', 'relief ' + Math.round(relief) + ' m'];
+  // flat open plains in the farming belts: the Midwest, the steppe, the Pampas
+  if (relief < 120 && el < 800 && lat > 25 && lat < 57) return ['field', 'plains'];
+  return ['forest', relief > 150 ? 'hills' : 'lowland'];
+}
+// The size of the town nearest to a point, so a located phone knows it is in a city.
+async function townPopulation(name, lat, lon){
+  if (!name) return 0;
+  try {
+    const j = await getJSON('https://geocoding-api.open-meteo.com/v1/search?count=10&language=en&name=' + encodeURIComponent(name), 6000);
+    const near = (j.results || []).map(r => ({r, d: Math.hypot(r.latitude - lat, (r.longitude - lon)*Math.cos(lat*Math.PI/180))})).sort((a, b) => a.d - b.d)[0];
+    return near && near.d < 0.35 ? (near.r.population || 0) : 0;
+  } catch(e){ return 0; }
 }
 function seaTempAt(marine, time){
   if (!marine || !marine.hourly || !marine.hourly.sea_surface_temperature) return null;
@@ -475,28 +494,22 @@ function renderControls(){
     b.onclick = () => { state.day = k; update(); };
     days.appendChild(b);
   });
-  const slots = $('slots'); slots.innerHTML = '';
-  SLOTS.forEach((s, k) => {
-    const i = indexFor(state.day, s.hour);
-    const t = i >= 0 ? state.data.hourly.temperature_2m[i] : null;
+  // one card per hour of the chosen day: hour, sky, temperature, wind at 10 m
+  const hours = $('hours'); hours.innerHTML = '';
+  const H = state.data.hourly, D = state.data.daily;
+  const rise = hourOf(D.sunrise[state.day]) ?? 7, set = hourOf(D.sunset[state.day]) ?? 18;
+  for (let h = 0; h < 24; h++){
+    const i = indexFor(state.day, h); if (i < 0) continue;
+    const kind = wmo(H.weather_code[i]).kind, night = h < rise || h > set;
+    const ic = {clear: night ? '🌙' : '☀️', cloudy: night ? '☁️' : '⛅', overcast:'☁️', fog:'🌫️', drizzle:'🌦️', rain:'🌧️', snow:'🌨️', storm:'⛈️'}[kind] || '⛅';
     const b = document.createElement('button');
-    b.id = 'slot-' + k;
-    b.innerHTML = say('slots')[k] + ' <small>' + pad(s.hour) + ':00' + (t != null ? ' · ' + tTxt(t) : '') + '</small>';
-    b.setAttribute('aria-pressed', String(s.hour === state.hour));
-    b.onclick = () => { state.hour = s.hour; update(); };
-    slots.appendChild(b);
-  });
-  $('hour').value = state.hour; $('hour-out').textContent = pad(state.hour) + ':00';
-  const tr = $('terrain'); tr.querySelectorAll('button').forEach(b => b.remove());
-  TERRAINS.forEach(key => {
-    const b = document.createElement('button');
-    b.className = 'chip'; b.id = 'terrain-' + key;
-    b.textContent = key === 'auto' ? say('terrains').auto + ': ' + say('terrainLow')[state.autoTerrain] : say('terrains')[key];
-    b.setAttribute('aria-pressed', String(state.terrainPick === key));
-    b.onclick = () => { state.terrainPick = key; store.set('terrain', key); update(); };
-    tr.appendChild(b);
-  });
-  $('unit-note').textContent = say('unitNote')(unitTxt());
+    b.id = 'h-' + h; b.setAttribute('role', 'option'); b.setAttribute('aria-selected', String(h === state.hour));
+    b.innerHTML = '<span class="hh">' + pad(h) + ':00</span><span class="ic">' + ic + '</span><span class="tt">' + tTxt(H.temperature_2m[i]) + '</span><span class="ww">' + fmtV(H.wind_speed_10m[i]) + '</span>';
+    b.onclick = () => { state.hour = h; update(); };
+    hours.appendChild(b);
+  }
+  const selH = $('h-' + state.hour);
+  if (selH) requestAnimationFrame(() => { hours.scrollLeft = selH.offsetLeft - hours.clientWidth/2 + selH.offsetWidth/2; });
   $('u-ms').setAttribute('aria-pressed', String(state.unit === 'ms'));
   $('u-kmh').setAttribute('aria-pressed', String(state.unit === 'kmh'));
 }
@@ -528,11 +541,9 @@ function renderInfo(c){
   c.profile.slice().reverse().forEach(p => {
     const k = LEVELS.findIndex(l => l.h === p.h);
     const tr = document.createElement('tr');
-    tr.setAttribute('aria-selected', String(k === state.sel));
     tr.innerHTML = '<td>' + (p.h === 2 ? say('ground') : p.h + ' ' + say('m') + ' / ' + Math.round(p.h*3.281) + ' ft') + '</td>' +
       '<td><span class="spd" style="background:' + speedColor(p.v) + '">' + (p.est ? '≈' : '') + fmtV(p.v) + '</span> <span class="est">' + unitTxt() + '</span></td>' +
       '<td><span class="arrow">' + arrowFor(p.d) + '</span> ' + dirTxt(p.d) + ' <span class="est">' + Math.round(p.d) + '°</span></td>';
-    tr.onclick = () => { state.sel = k; renderInfo(c); };
     tb.appendChild(tr);
   });
 }
@@ -546,7 +557,6 @@ function update(){
   scene.set(c);
 }
 
-$('hour').addEventListener('input', e => { state.hour = +e.target.value; update(); });
 const setLang = l => { LANG = l; try { localStorage.setItem('veter.lang', JSON.stringify(l)); } catch(e){} applyLang(); if (state.demo) showBanner(say('demo')); renderPlaceBar(); update(); };
 $('l-ru').onclick = () => setLang('ru');
 $('l-en').onclick = () => setLang('en');
@@ -591,7 +601,8 @@ function locate(auto){
     $('geo-btn').textContent = say('geo');
     const lat = +pos.coords.latitude.toFixed(4), lon = +pos.coords.longitude.toFixed(4);
     const name = await placeName(lat, lon);
-    setPlace({name: name || say('myPlace'), lat, lon, geo:true});
+    const pop = await townPopulation(name, lat, lon);
+    setPlace({name: name || say('myPlace'), lat, lon, pop, geo:true});
   }, () => {
     $('geo-btn').textContent = say('geo');
     if (!auto) showBanner(say('geoFail'));
@@ -624,7 +635,7 @@ const scene = (() => {
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   let W = 360, H = 460, dpr = 1, c = null, t0 = performance.now();
   let mast = null, cloudSprites = [];
-  let streaks = [], drops = [], splashes = [], stars = [], waves = [], flash = 0, bolt = null, pillHits = [], built = false;
+  let streaks = [], drops = [], splashes = [], stars = [], waves = [], flash = 0, bolt = null, built = false;
   const MONO = getComputedStyle(document.body).getPropertyValue('--mono') || 'monospace';
 
   function mulberry(a){ return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -1078,7 +1089,7 @@ const scene = (() => {
   }
   function resize(){
     const w = cv.parentElement.clientWidth;
-    W = w; H = Math.round(clamp(w*1.25, 400, 660));
+    W = w; H = Math.round(clamp(w*1.42, 460, 760));
     dpr = Math.min(window.devicePixelRatio || 1, 2);
     cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr); cv.style.height = H + 'px';
     build();
@@ -1188,7 +1199,7 @@ const scene = (() => {
       const y = g.yOf(p.h), u = uOf(p.d), dir = Math.sign(u || 1);
       const speed = (4 + p.v*14)*(Math.abs(u) < 0.15 ? 0.3 : 1);
       ctx.strokeStyle = 'rgba(255,255,255,' + clamp(0.16 + p.v*0.04, 0.18, 0.7) + ')';
-      ctx.lineWidth = k === state.sel ? 2.2 : 1.3;
+      ctx.lineWidth = 1.3;
       streaks.forEach(s => {
         if (s.k !== k) return;
         if (!reduce) s.x += dir*speed/60;
@@ -1322,7 +1333,6 @@ const scene = (() => {
   }
 
   function drawPills(g){
-    pillHits = [];
     ctx.font = '600 10px ' + MONO; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
     if (false) c.profile.forEach(p => {
       ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.7)'; ctx.shadowBlur = 3; ctx.fillStyle = '#ffffff';
@@ -1341,7 +1351,6 @@ const scene = (() => {
       // lower band carries the height in metres and feet
       ctx.save(); roundRect(x, y - h/2, w, h, 9); ctx.clip();
       ctx.fillStyle = 'rgba(13,27,42,0.8)'; ctx.fillRect(x, y + 2, w, h/2); ctx.restore();
-      if (k === state.sel){ ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; roundRect(x - 2, y - h/2 - 2, w + 4, h + 4, 11); ctx.stroke(); }
       // same rule as the table: the arrow points where the wind blows to, north is up
       ctx.save(); ctx.translate(x + 11, y - 7); ctx.rotate((p.d + 180)*Math.PI/180);
       ctx.strokeStyle = '#0d1b2a'; ctx.fillStyle = '#0d1b2a'; ctx.lineWidth = 1.6; ctx.lineCap = 'round';
@@ -1352,7 +1361,6 @@ const scene = (() => {
       ctx.font = '700 13px ' + MONO; ctx.fillText(txt, x + 21, y - 7);
       ctx.font = '600 9.5px ' + MONO; ctx.fillText(un, x + 21 + tw, y - 6.5);
       ctx.fillStyle = '#ffffff'; ctx.fillText(lab, x + (w - lw)/2, y + 8.5);
-      pillHits.push({k, x, y: y - h/2, w, h});
     });
   }
   function roundRect(x, y, w, h, r){
@@ -1360,11 +1368,6 @@ const scene = (() => {
     ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
   }
 
-  cv.addEventListener('click', e => {
-    const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
-    const hit = pillHits.find(p => x >= p.x - 6 && x <= p.x + p.w + 6 && y >= p.y - 6 && y <= p.y + p.h + 6);
-    if (hit){ state.sel = hit.k; const cur = current(); if (cur) renderInfo(cur); if (reduce) draw(performance.now()); }
-  });
 
   let lastW = 0;
   new ResizeObserver(() => { const w = cv.parentElement.clientWidth; if (w === lastW) return; lastW = w; resize(); if (reduce) draw(performance.now()); }).observe(cv.parentElement);

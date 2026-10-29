@@ -55,6 +55,9 @@ jobs:
           sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />#' app/src/main/AndroidManifest.xml
           grep -q ACCESS_FINE_LOCATION app/src/main/AndroidManifest.xml
           rm -rf app/src/main/res/mipmap-anydpi-v26
+          # keep the app below the status bar and the camera cut-out instead of drawing under them
+          sed -i '/<style name="AppTheme.NoActionBar"/a\        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>' app/src/main/res/values/styles.xml
+          grep -q windowOptOutEdgeToEdgeEnforcement app/src/main/res/values/styles.xml
           cp -r ../../android-assets/res/* app/src/main/res/
           sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"1.${{ github.run_number }}\"/" app/build.gradle
 
