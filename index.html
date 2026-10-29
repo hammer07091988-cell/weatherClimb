@@ -1,0 +1,1385 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="weatherClimb">
+<title>Ветер по высотам</title>
+<meta name="theme-color" content="#1d3557">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Manrope:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: one phone column; place bar, scene card, weather facts, then the height table */
+:root{
+  --bg:#eef2f6; --surface:#ffffff; --fg:#14202e; --muted:#5b6b7d; --line:#d6dee7;
+  --accent:#1f6fd1; --accent-ink:#ffffff; --star:#f2a900; --warn-bg:#fff4d6; --warn-fg:#6b4d00;
+  --display:"Unbounded", "Manrope", system-ui, sans-serif;
+  --body:"Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0c131c; --surface:#151f2b; --fg:#e6edf5; --muted:#93a3b5; --line:#263445;
+  --accent:#5aa2ff; --accent-ink:#071423; --star:#ffc53d; --warn-bg:#3a2e0c; --warn-fg:#f3dc96; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0c131c; --surface:#151f2b; --fg:#e6edf5; --muted:#93a3b5; --line:#263445;
+  --accent:#5aa2ff; --accent-ink:#071423; --star:#ffc53d; --warn-bg:#3a2e0c; --warn-fg:#f3dc96; color-scheme:dark}
+[hidden]{display:none!important}
+html,body{background:var(--bg);color:var(--fg)}
+body{font-family:var(--body);font-size:15px;line-height:1.45;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:12px 32px}
+.app{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+header{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.toggles{display:flex;gap:8px;flex-shrink:0}
+h1{font-family:var(--display);font-size:20px;font-weight:700;margin:0;letter-spacing:-.01em;text-wrap:balance}
+h2{font-family:var(--display);font-size:15px;font-weight:500;margin:6px 0 0}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;font-weight:600;font-size:14px;white-space:nowrap}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.place{display:flex;gap:6px;align-items:center;min-width:0;flex:1}
+.place-name{font-weight:700;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.star{border:0;background:transparent;font-size:24px;line-height:1;padding:2px 4px;color:var(--muted)}
+.star[aria-pressed="true"]{color:var(--star)}
+.actions{display:flex;gap:6px}
+.search{display:flex;flex-direction:column;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px}
+.search-row{display:flex;gap:8px}
+.search input{flex:1;min-width:0;font:inherit;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--bg);color:var(--fg)}
+.results{display:flex;flex-direction:column;gap:2px}
+.results button{text-align:left;border:0;background:transparent;padding:7px 6px;border-radius:8px}
+.results button:hover{background:var(--bg)}
+.results small{color:var(--muted)}
+.scroller{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.scroller::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px;font-weight:600;font-size:13px}
+.chip[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+.chip.fav::before{content:"★ ";color:var(--star)}
+.label{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700;flex:none;align-self:center}
+.note{font-size:13px;color:var(--muted);margin:0}
+.banner{background:var(--warn-bg);color:var(--warn-fg);border-radius:12px;padding:8px 12px;font-size:13px}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:4px}
+.seg button{border:0;background:transparent;border-radius:10px;padding:7px 4px;font-weight:600;font-size:14px;display:flex;flex-direction:column;align-items:center;line-height:1.2}
+.seg button small{font-family:var(--mono);font-weight:500;font-size:11px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.seg button[aria-pressed="true"] small{color:inherit;opacity:.85}
+.scene-wrap{position:relative;border-radius:18px;overflow:hidden;background:#24384f;box-shadow:0 6px 24px rgba(10,30,60,.18)}
+canvas{display:block;width:100%;touch-action:manipulation}
+.scene-caption{position:absolute;left:12px;top:10px;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.5);pointer-events:none}
+.scene-caption .t{font-family:var(--display);font-size:32px;font-weight:700;line-height:1}
+.scene-caption .c{font-size:13px;font-weight:700;margin-top:4px}
+.scene-caption .p{font-size:12px;font-weight:600;opacity:.9}
+.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px 10px;min-width:0;display:flex;flex-direction:column;gap:1px}
+.stat .k{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.stat .v{font-family:var(--mono);font-weight:700;font-size:16px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.stat .s{font-size:12px;line-height:1.3;color:var(--muted)}
+.uv-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:1px}
+.levels{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.levels table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.levels th{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+.levels td{padding:8px 10px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:14px}
+.levels tr:last-child td{border-bottom:0}
+.levels tbody tr{cursor:pointer}
+.levels tbody tr[aria-selected="true"]{background:color-mix(in srgb, var(--accent) 14%, transparent)}
+.spd{display:inline-block;min-width:44px;text-align:center;border-radius:999px;padding:1px 8px;color:#0d1b2a;font-weight:700}
+.arrow{display:inline-block;width:14px;text-align:center}
+.est{color:var(--muted);font-size:12px}
+.hour-row{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:700;color:var(--muted)}
+.hour-row input{flex:1;min-width:0;accent-color:var(--accent)}
+.hour-row output{font-family:var(--mono);color:var(--fg);min-width:44px;text-align:right}
+.scroller{mask-image:linear-gradient(90deg,#000 85%,transparent);-webkit-mask-image:linear-gradient(90deg,#000 85%,transparent);padding-right:24px}
+.unit{display:flex;gap:4px}
+.unit button{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:3px 8px;font-size:12px;font-weight:700}
+.unit button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+footer{font-size:12px;color:var(--muted)}
+footer a{color:var(--accent)}
+</style>
+
+<div class="app">
+  <header>
+    <h1 data-i18n="title">Ветер по высотам</h1>
+    <div class="toggles">
+      <div class="unit" role="group" aria-label="Язык">
+        <button id="l-ru" aria-pressed="true">RU</button>
+        <button id="l-en" aria-pressed="false">EN</button>
+      </div>
+      <div class="unit" role="group" data-i18n-aria="units" aria-label="Единицы скорости">
+        <button id="u-ms" aria-pressed="true" data-i18n="ms">м/с</button>
+        <button id="u-kmh" aria-pressed="false" data-i18n="kmh">км/ч</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="row">
+    <div class="place">
+      <button class="star" id="fav-btn" aria-pressed="false" aria-label="Добавить место в избранное">☆</button>
+      <span class="place-name" id="place-name">Москва</span>
+    </div>
+    <div class="actions">
+      <button class="btn" id="geo-btn">📍 Где я</button>
+      <button class="btn" id="search-toggle" data-i18n="find">Найти</button>
+    </div>
+  </div>
+
+  <div class="search" id="search" hidden>
+    <form class="search-row" id="search-form">
+      <input id="search-input" type="search" data-i18n-ph="searchPh" placeholder="Город, посёлок, курорт" autocomplete="off">
+      <button class="btn primary" type="submit" data-i18n="find">Найти</button>
+    </form>
+    <div class="results" id="results"></div>
+  </div>
+
+  <div class="scroller" id="favs" data-i18n-aria="favsAria" aria-label="Избранные места"></div>
+
+  <div class="banner" id="banner" hidden></div>
+
+  <div class="scroller" id="days"></div>
+  <div class="seg" id="slots"></div>
+  <div class="hour-row"><label for="hour" data-i18n="hour">Час</label><input id="hour" type="range" min="0" max="23" step="1" value="12"><output id="hour-out">12:00</output></div>
+
+  <p class="note" id="unit-note"></p>
+  <div class="scene-wrap">
+    <canvas id="scene" data-i18n-aria="sceneAria" aria-label="Вышка с ветром на разных высотах"></canvas>
+    <div class="scene-caption"><div class="t" id="cap-temp">—</div><div class="c" id="cap-cond"></div><div class="p" id="cap-feel"></div><div class="p" id="cap-sun"></div></div>
+  </div>
+
+  <div class="scroller" id="terrain"><span class="label" data-i18n="terrain">Местность</span></div>
+
+  <div class="facts">
+    <div class="stat"><div class="k" data-i18n="rise">Восход</div><div class="v" id="f-rise">—</div><div class="s" id="f-daylen"></div></div>
+    <div class="stat"><div class="k" data-i18n="set">Закат</div><div class="v" id="f-set">—</div><div class="s" id="f-setnote"></div></div>
+    <div class="stat"><div class="k" data-i18n="uv">УФ-индекс</div><div class="v" id="f-uv">—</div><div class="s" id="f-uvtxt"></div></div>
+    <div class="stat"><div class="k" data-i18n="prec">Осадки</div><div class="v" id="f-prec">—</div><div class="s" id="f-cloud"></div></div>
+    <div class="stat"><div class="k" data-i18n="gust">Порывы</div><div class="v" id="f-gust">—</div><div class="s" data-i18n="at10">на 10 м</div></div>
+    <div class="stat"><div class="k" data-i18n="water">Вода</div><div class="v" id="f-water">—</div><div class="s" id="f-watertxt"></div></div>
+  </div>
+
+  <h2 data-i18n="h2">Ветер на каждой высоте</h2>
+  <div class="levels">
+    <table>
+      <thead><tr><th data-i18n="thH">Высота</th><th data-i18n="thV">Скорость</th><th data-i18n="thD">Откуда дует</th></tr></thead>
+      <tbody id="levels"></tbody>
+    </table>
+  </div>
+  <p class="note" data-i18n="modelNote">Модель даёт ветер на 10, 80 и 120 м. Значения у земли, на 20 и 40 м рассчитаны по профилю ветра между ними и помечены знаком ≈.</p>
+
+  <footer data-i18n-html="footer">Прогноз, УФ и температура моря: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>. Высоты на вышке показаны в сжатом масштабе, чтобы нижние уровни не слипались.</footer>
+</div>
+
+<script>
+(() => {
+const LEVELS = [
+  {h:2, label:'у земли'}, {h:10, label:'10 м / 33 ft'}, {h:20, label:'20 м / 66 ft'}, {h:40, label:'40 м / 131 ft'},
+  {h:80, label:'80 м / 262 ft'}, {h:120, label:'120 м / 394 ft'}
+];
+// ---------- languages ----------
+const I18N = {
+  title: ['Ветер по высотам', 'Wind by height'], units: ['Единицы скорости', 'Speed units'],
+  ms: ['м/с', 'm/s'], kmh: ['км/ч', 'km/h'], m: ['м', 'm'],
+  favAdd: ['Добавить в избранное', 'Add to favourites'], favDel: ['Убрать из избранного', 'Remove from favourites'], favs: ['Избранное', 'Favourites'],
+  geo: ['📍 Где я', '📍 Locate me'], geoBusy: ['📍 Ищу…', '📍 Locating…'], find: ['Найти', 'Search'],
+  searchPh: ['Город, посёлок, курорт', 'City, town, resort'], favsAria: ['Избранные места', 'Favourite places'],
+  hour: ['Час', 'Hour'], sceneAria: ['Вышка с ветром на разных высотах', 'Tower with the wind at each height'], terrain: ['Местность', 'Terrain'],
+  rise: ['Восход', 'Sunrise'], set: ['Закат', 'Sunset'], uv: ['УФ-индекс', 'UV index'], prec: ['Осадки', 'Precipitation'],
+  gust: ['Порывы', 'Gusts'], at10: ['на 10 м', 'at 10 m'], water: ['Вода', 'Water'],
+  h2: ['Ветер на каждой высоте', 'Wind at each height'], thH: ['Высота', 'Height'], thV: ['Скорость', 'Speed'], thD: ['Откуда дует', 'From'],
+  modelNote: ['Модель даёт ветер на 10, 80 и 120 м. Значения у земли, на 20 и 40 м рассчитаны по профилю ветра между ними и помечены знаком ≈.',
+    'The model gives wind at 10, 80 and 120 m. Values near the ground and at 20 and 40 m are estimated from the wind profile between them and marked with ≈.'],
+  footer: ['Прогноз, УФ и температура моря: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>. Высоты на вышке показаны в сжатом масштабе, чтобы нижние уровни не слипались.',
+    'Forecast, UV and sea temperature: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>. Heights on the tower are drawn on a compressed scale so the low levels do not crowd together.'],
+  slots: [['Утро', 'День', 'Вечер'], ['Morning', 'Day', 'Evening']],
+  dirs: [['С','СВ','В','ЮВ','Ю','ЮЗ','З','СЗ'], ['N','NE','E','SE','S','SW','W','NW']],
+  week: [['вс','пн','вт','ср','чт','пт','сб'], ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']],
+  terrains: [{auto:'Авто', forest:'Лес', mountains:'Горы', sea:'Море', city:'Город', field:'Поле'}, {auto:'Auto', forest:'Forest', mountains:'Mountains', sea:'Sea', city:'City', field:'Field'}],
+  terrainLow: [{forest:'лес', mountains:'горы', sea:'море', city:'город', field:'поле'}, {forest:'forest', mountains:'mountains', sea:'sea', city:'city', field:'field'}],
+  ground: ['у земли', 'ground'], today: ['Сегодня', 'Today'], tomorrow: ['Завтра', 'Tomorrow'],
+  unitNote: [u => 'Скорость на вышке в ' + u + ', стрелка показывает, куда дует ветер (север вверху).', u => 'Tower speeds in ' + u + '; the arrow shows where the wind blows to (north is up).'],
+  feel: ['Ощущается как ', 'Feels like '], h: [' ч ', ' h '], min: [' мин', ' min'], day: ['день ', 'daylight '],
+  notUp: ['солнце ещё не встало', 'the sun is not up yet'], down: ['солнце уже село', 'the sun has set'], inT: ['через ', 'in '],
+  max: ['макс. ', 'max '], noData: ['нет данных', 'no data'], mm: [' мм', ' mm'], cloud: ['облачность ', 'cloud cover '],
+  sample: ['пример', 'sample'], seaNear: ['море рядом', 'sea nearby'], noSea: ['моря рядом нет', 'no sea nearby'],
+  uvL: [['низкий', 'средний, нужна защита', 'высокий', 'очень высокий', 'экстремальный'], ['low', 'moderate, use protection', 'high', 'very high', 'extreme']],
+  searching: ['Ищу…', 'Searching…'], notFound: ['Ничего не нашлось. Попробуйте другое написание.', 'Nothing found. Try another spelling.'],
+  noSearch: ['Поиск сейчас недоступен: нет связи с сервером.', 'Search is unavailable: no connection to the server.'],
+  noGeo: ['Это устройство не сообщает своё место. Найдите город через поиск.', 'This device does not share its location. Find your town with search.'],
+  geoFail: ['Не получилось узнать, где вы. Разрешите доступ к геопозиции для этой страницы или найдите город через поиск.', 'Could not get your location. Allow location access for this page or find your town with search.'],
+  myPlace: ['Моё место', 'My location'],
+  demo: ['Нет связи с сервером прогноза, поэтому показан пример погоды. Переключайте местность ниже, чтобы посмотреть все виды.', 'No connection to the forecast server, so sample weather is shown. Switch the terrain below to see every scene.']
+};
+const WMO_EN = {'Ясно':'Clear', 'Преимущественно ясно':'Mostly clear', 'Переменная облачность':'Partly cloudy', 'Пасмурно':'Overcast', 'Туман':'Fog',
+  'Морось':'Drizzle', 'Ледяная морось':'Freezing drizzle', 'Небольшой дождь':'Light rain', 'Дождь':'Rain', 'Сильный дождь':'Heavy rain',
+  'Ледяной дождь':'Freezing rain', 'Небольшой снег':'Light snow', 'Снег':'Snow', 'Сильный снег':'Heavy snow', 'Снежная крупа':'Snow grains',
+  'Сильный ливень':'Violent showers', 'Ливень':'Showers', 'Снегопад':'Snow showers', 'Гроза':'Thunderstorm', 'Гроза с градом':'Thunderstorm with hail', 'Облачно':'Cloudy'};
+let LANG = (() => { try { const v = localStorage.getItem('veter.lang'); if (v) return JSON.parse(v); } catch(e){} return (navigator.language || 'ru').toLowerCase().startsWith('ru') ? 'ru' : 'en'; })();
+const say = k => I18N[k][LANG === 'en' ? 1 : 0];
+function applyLang(){
+  document.documentElement.lang = LANG; document.title = say('title');
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = say(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-html]').forEach(el => { el.innerHTML = say(el.dataset.i18nHtml); });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = say(el.dataset.i18nPh); });
+  document.querySelectorAll('[data-i18n-aria]').forEach(el => { el.setAttribute('aria-label', say(el.dataset.i18nAria)); });
+  document.getElementById('l-ru').setAttribute('aria-pressed', String(LANG === 'ru'));
+  document.getElementById('l-en').setAttribute('aria-pressed', String(LANG === 'en'));
+  document.getElementById('geo-btn').textContent = say('geo');
+}
+const SLOTS = [{hour:9}, {hour:14}, {hour:19}];
+const TERRAINS = ['auto','forest','mountains','sea','city','field'];
+const DEFAULT_PLACE = {name:'Москва', lat:55.7558, lon:37.6173, pop:12000000};
+
+const store = {
+  get(k, d){ try { const v = localStorage.getItem('veter.' + k); return v == null ? d : JSON.parse(v); } catch(e){ return d; } },
+  set(k, v){ try { localStorage.setItem('veter.' + k, JSON.stringify(v)); } catch(e){} }
+};
+
+const state = {
+  place: store.get('place', DEFAULT_PLACE), favs: store.get('favs', []), unit: store.get('unit2', 'kmh'),
+  terrainPick: store.get('terrain', 'auto'), autoTerrain: 'forest', terrainWhy: '',
+  data:null, marine:null, demo:false, day:0, hour:null, sel:1
+};
+
+function placeNow(){
+  // local time at the chosen place, from the forecast's UTC offset
+  const off = state.data && state.data.utc_offset_seconds != null ? state.data.utc_offset_seconds : -new Date().getTimezoneOffset()*60;
+  const d = new Date(Date.now() + off*1000);
+  return {hour: d.getUTCHours() + d.getUTCMinutes()/60, date: d.getUTCFullYear() + '-' + pad(d.getUTCMonth()+1) + '-' + pad(d.getUTCDate())};
+}
+function defaultHour(){ const h = Math.floor(placeNow().hour); return h < 6 ? 9 : Math.min(h + 1, 23); }
+const pad = n => String(n).padStart(2,'0');
+const clamp = (x,a,b) => Math.max(a, Math.min(b, x));
+const lerp = (a,b,t) => a + (b-a)*t;
+const $ = id => document.getElementById(id);
+
+// ---------- weather codes ----------
+function wmo(code){
+  const c = code|0;
+  if (c === 0) return {kind:'clear', text:'Ясно'};
+  if (c === 1) return {kind:'clear', text:'Преимущественно ясно'};
+  if (c === 2) return {kind:'cloudy', text:'Переменная облачность'};
+  if (c === 3) return {kind:'overcast', text:'Пасмурно'};
+  if (c === 45 || c === 48) return {kind:'fog', text:'Туман'};
+  if (c >= 51 && c <= 55) return {kind:'drizzle', text:'Морось'};
+  if (c === 56 || c === 57) return {kind:'drizzle', text:'Ледяная морось'};
+  if (c === 61) return {kind:'rain', text:'Небольшой дождь'};
+  if (c === 63) return {kind:'rain', text:'Дождь'};
+  if (c === 65) return {kind:'rain', text:'Сильный дождь'};
+  if (c === 66 || c === 67) return {kind:'rain', text:'Ледяной дождь'};
+  if (c === 71) return {kind:'snow', text:'Небольшой снег'};
+  if (c === 73) return {kind:'snow', text:'Снег'};
+  if (c === 75) return {kind:'snow', text:'Сильный снег'};
+  if (c === 77) return {kind:'snow', text:'Снежная крупа'};
+  if (c >= 80 && c <= 82) return {kind:'rain', text: c === 82 ? 'Сильный ливень' : 'Ливень'};
+  if (c === 85 || c === 86) return {kind:'snow', text:'Снегопад'};
+  if (c === 95) return {kind:'storm', text:'Гроза'};
+  if (c === 96 || c === 99) return {kind:'storm', text:'Гроза с градом'};
+  return {kind:'cloudy', text:'Облачно'};
+}
+
+// ---------- data ----------
+const HOURLY = ['temperature_2m','apparent_temperature','precipitation','weather_code','cloud_cover','wind_gusts_10m','uv_index',
+  'wind_speed_10m','wind_speed_80m','wind_speed_120m','wind_speed_180m',
+  'wind_direction_10m','wind_direction_80m','wind_direction_120m','wind_direction_180m'];
+
+async function getJSON(url, ms){
+  const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), ms || 8000);
+  try { const r = await fetch(url, {signal: ctrl.signal}); if (!r.ok) throw new Error('HTTP ' + r.status); return await r.json(); }
+  finally { clearTimeout(to); }
+}
+
+async function loadAll(place){
+  const f = 'https://api.open-meteo.com/v1/forecast?latitude=' + place.lat + '&longitude=' + place.lon +
+    '&hourly=' + HOURLY.join(',') + '&daily=sunrise,sunset,uv_index_max&wind_speed_unit=ms&timezone=auto&forecast_days=3';
+  // the cell right at the coast can count as land, so also try points 15 km around
+  const mk = 0.14, mkl = mk/Math.max(0.2, Math.cos(place.lat*Math.PI/180));
+  const mLat = [0,mk,-mk,0,0].map(d => (place.lat + d).toFixed(4)).join(','), mLon = [0,0,0,mkl,-mkl].map(d => (place.lon + d).toFixed(4)).join(',');
+  const m = 'https://marine-api.open-meteo.com/v1/marine?latitude=' + mLat + '&longitude=' + mLon +
+    '&hourly=sea_surface_temperature,wave_height&timezone=auto&forecast_days=3';
+  const k = 0.12, kl = k/Math.max(0.2, Math.cos(place.lat*Math.PI/180));
+  const lats = [0,k,-k,0,0,k,k,-k,-k].map(d => (place.lat + d).toFixed(4));
+  const lons = [0,0,0,kl,-kl,kl,-kl,kl,-kl].map(d => (place.lon + d).toFixed(4));
+  const e = 'https://api.open-meteo.com/v1/elevation?latitude=' + lats.join(',') + '&longitude=' + lons.join(',');
+  const [fr, mr, er] = await Promise.allSettled([getJSON(f), getJSON(m), getJSON(e)]);
+  if (fr.status !== 'fulfilled') return {data: demoData(), marine: demoMarine(), elev:null, demo:true};
+  let marine = mr.status === 'fulfilled' ? mr.value : null;
+  if (Array.isArray(marine)) marine = marine.find(x => x.hourly && (x.hourly.sea_surface_temperature || []).some(v => v != null)) || null;
+  return {data: fr.value, marine, elev: er.status === 'fulfilled' ? er.value.elevation : null, demo:false};
+}
+
+function demoData(){
+  // Example forecast so the page shows something without a network connection.
+  const days = [], time = [], H = {}; HOURLY.forEach(k => H[k] = []);
+  const now = new Date();
+  for (let d = 0; d < 3; d++){
+    const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() + d);
+    days.push(dt.getFullYear() + '-' + pad(dt.getMonth()+1) + '-' + pad(dt.getDate()));
+  }
+  const codes = [[0,2,61],[71,3,0],[1,95,80]];
+  const temps = [[4,9,7],[-1,1,-3],[6,13,10]];
+  days.forEach((day, d) => {
+    for (let h = 0; h < 24; h++){
+      time.push(day + 'T' + pad(h) + ':00');
+      const slot = h < 12 ? 0 : h < 17 ? 1 : 2;
+      const v10 = 2.5 + d*1.2 + 2.2*Math.sin((h-6)/24*Math.PI*2) + slot*0.8;
+      const code = codes[d][slot];
+      const tt = temps[d][slot] + Math.sin(h/3)*0.6;
+      H.temperature_2m.push(tt); H.apparent_temperature.push(tt - v10*0.7);
+      H.weather_code.push(code);
+      H.precipitation.push(code >= 51 ? (code >= 80 ? 3.2 : 1.1) : 0);
+      H.cloud_cover.push(code === 0 ? 5 : code === 1 ? 20 : code === 2 ? 55 : 95);
+      H.uv_index.push(Math.max(0, Math.sin((h-7)/10*Math.PI))*(code > 2 ? 0.8 : 2.4));
+      H.wind_speed_10m.push(v10); H.wind_speed_80m.push(v10*1.55); H.wind_speed_120m.push(v10*1.72); H.wind_speed_180m.push(v10*1.9);
+      H.wind_gusts_10m.push(v10*1.7);
+      const base = 250 + d*40 + h*2;
+      H.wind_direction_10m.push(base % 360); H.wind_direction_80m.push((base+12) % 360);
+      H.wind_direction_120m.push((base+18) % 360); H.wind_direction_180m.push((base+25) % 360);
+    }
+  });
+  return {elevation:150, hourly:Object.assign({time}, H),
+    daily:{time:days, sunrise:days.map(x => x+'T07:21'), sunset:days.map(x => x+'T16:52'), uv_index_max:[1.6,0.9,2.3]}};
+}
+function demoMarine(){ return {demo:true, hourly:{time:[], sea_surface_temperature:[]}}; }
+
+function hourOf(s){ const m = /T(\d\d):(\d\d)/.exec(s||''); return m ? (+m[1]) + (+m[2])/60 : null; }
+function hhmm(s){ const m = /T(\d\d:\d\d)/.exec(s||''); return m ? m[1] : '—'; }
+function angleLerp(a, b, t){ let d = ((b - a + 540) % 360) - 180; return (a + d*t + 360) % 360; }
+
+function detectTerrain(res){
+  const water = seaTempAt(res.marine, res.data.hourly.time[12]);
+  const el = res.data.elevation ?? (res.elev ? res.elev[0] : 0);
+  const relief = res.elev ? Math.max(...res.elev) - Math.min(...res.elev) : 0;
+  if (water != null) return ['sea', 'рядом море'];
+  if (el > 1100 || relief > 450) return ['mountains', 'перепад высот ' + Math.round(relief) + ' м'];
+  if ((state.place.pop || 0) > 400000) return ['city', 'крупный город'];
+  if (relief < 60 && el < 400 && Math.abs(state.place.lat) < 55 && Math.abs(state.place.lat) > 40) return ['field', 'равнина'];
+  return ['forest', relief > 150 ? 'холмы' : 'равнина'];
+}
+function seaTempAt(marine, time){
+  if (!marine || !marine.hourly || !marine.hourly.sea_surface_temperature) return null;
+  const i = marine.hourly.time.indexOf(time);
+  const arr = marine.hourly.sea_surface_temperature;
+  const v = i >= 0 ? arr[i] : arr.find(x => x != null);
+  return v == null ? null : +v;
+}
+
+function profileAt(i){
+  const H = state.data.hourly;
+  const g = k => (H[k] && H[k][i] != null) ? +H[k][i] : null;
+  const v10 = g('wind_speed_10m') ?? 0; let v80 = g('wind_speed_80m');
+  const est80 = v80 == null, est120 = g('wind_speed_120m') == null, est180 = g('wind_speed_180m') == null;
+  let alpha = 0.14;
+  if (v80 != null && v10 > 0.3 && v80 > 0.3) alpha = clamp(Math.log(v80/v10)/Math.log(8), 0.06, 0.4);
+  const pw = h => v10 * Math.pow(h/10, alpha);
+  if (v80 == null) v80 = pw(80);
+  const v120 = g('wind_speed_120m') ?? pw(120), v180 = g('wind_speed_180m') ?? pw(180);
+  const d10 = g('wind_direction_10m') ?? 0, d80 = g('wind_direction_80m') ?? d10;
+  const d120 = g('wind_direction_120m') ?? d80, d180 = g('wind_direction_180m') ?? d120;
+  const fr = h => Math.log(h/10)/Math.log(8);
+  // near the ground the surface roughness matters more than the 10-80 m fit
+  const terrain = state.terrainPick === 'auto' ? state.autoTerrain : state.terrainPick;
+  const aLow = {forest:0.28, city:0.32, mountains:0.22, field:0.15, sea:0.11}[terrain] ?? 0.16;
+  return [
+    {h:2, v:v10*Math.pow(0.2, aLow), d:d10, est:true},
+    {h:10, v:v10, d:d10, est:false},
+    {h:20, v:pw(20), d:angleLerp(d10,d80,fr(20)), est:true},
+    {h:40, v:pw(40), d:angleLerp(d10,d80,fr(40)), est:true},
+    {h:80, v:v80, d:d80, est:est80},
+    {h:120, v:v120, d:d120, est:est120}
+  ];
+}
+
+function indexFor(day, hour){
+  const d = state.data.daily.time[day]; if (!d) return -1;
+  return state.data.hourly.time.indexOf(d + 'T' + pad(hour) + ':00');
+}
+
+function current(){
+  const hour = state.hour;
+  const i = indexFor(state.day, hour);
+  if (i < 0) return null;
+  const H = state.data.hourly, D = state.data.daily;
+  const sunrise = hourOf(D.sunrise[state.day]) ?? 7, sunset = hourOf(D.sunset[state.day]) ?? 18;
+  const terrain = state.terrainPick === 'auto' ? state.autoTerrain : state.terrainPick;
+  let water = seaTempAt(state.marine, H.time[i]);
+  if (state.demo && terrain === 'sea') water = 11.8;
+  return {
+    i, hour, sunrise, sunset, riseTxt: hhmm(D.sunrise[state.day]), setTxt: hhmm(D.sunset[state.day]),
+    temp: H.temperature_2m[i], feel: H.apparent_temperature ? H.apparent_temperature[i] : null,
+    prec: H.precipitation[i] || 0, code: H.weather_code[i], cloud: H.cloud_cover[i] ?? 50, gust: H.wind_gusts_10m[i],
+    uv: H.uv_index ? H.uv_index[i] : null, uvMax: D.uv_index_max ? D.uv_index_max[state.day] : null,
+    w: wmo(H.weather_code[i]), profile: profileAt(i), night: hour < sunrise || hour > sunset,
+    terrain, water, lat: state.place.lat, month: +D.time[state.day].slice(5,7) - 1,
+    seed: Math.round(Math.abs(state.place.lat*1000 + state.place.lon*7919)) % 100000
+  };
+}
+
+// ---------- formatting ----------
+const fmtV = v => state.unit === 'ms' ? (v < 10 ? v.toFixed(1) : Math.round(v).toString()) : Math.round(v*3.6).toString();
+const unitTxt = () => say(state.unit === 'ms' ? 'ms' : 'kmh');
+const dirTxt = d => say('dirs')[Math.round(((d%360)+360)%360/45) % 8];
+const tTxt = t => { const r = Math.round(t); return (r > 0 ? '+' : '') + r + '°'; };
+function speedColor(v){
+  if (v < 2) return '#b8e6c9';
+  if (v < 5) return '#8fdc8a';
+  if (v < 8) return '#e9e36a';
+  if (v < 11) return '#f6b84e';
+  if (v < 15) return '#f2834a';
+  return '#ef5a5a';
+}
+function uvInfo(u){
+  const t = say('uvL');
+  if (u < 3) return ['#5cc46a', t[0]];
+  if (u < 6) return ['#e9c53a', t[1]];
+  if (u < 8) return ['#f08c2e', t[2]];
+  if (u < 11) return ['#e0453a', t[3]];
+  return ['#9b59d0', t[4]];
+}
+const ARROWS = ['↓','↙','←','↖','↑','↗','→','↘'];
+const arrowFor = d => ARROWS[Math.round(((d%360)+360)%360/45) % 8];
+
+// ---------- UI ----------
+const sameSpot = (a, b) => Math.abs(a.lat - b.lat) < 0.01 && Math.abs(a.lon - b.lon) < 0.01;
+
+function renderPlaceBar(){
+  $('place-name').textContent = state.place.name;
+  const isFav = state.favs.some(f => sameSpot(f, state.place));
+  const fb = $('fav-btn');
+  fb.textContent = isFav ? '★' : '☆';
+  fb.setAttribute('aria-pressed', String(isFav));
+  fb.setAttribute('aria-label', say(isFav ? 'favDel' : 'favAdd'));
+  const box = $('favs'); box.innerHTML = '';
+  box.hidden = !state.favs.length;
+  if (state.favs.length){ const l = document.createElement('span'); l.className = 'label'; l.textContent = say('favs'); box.appendChild(l); }
+  state.favs.forEach((f, k) => {
+    const b = document.createElement('button');
+    b.className = 'chip fav'; b.id = 'fav-' + k; b.textContent = f.name;
+    b.setAttribute('aria-pressed', String(sameSpot(f, state.place)));
+    b.onclick = () => setPlace(f);
+    box.appendChild(b);
+  });
+}
+
+function renderControls(){
+  renderPlaceBar();
+  const days = $('days'); days.innerHTML = '';
+  state.data.daily.time.forEach((d, k) => {
+    const dt = new Date(d + 'T12:00');
+    const b = document.createElement('button');
+    b.className = 'chip'; b.id = 'day-' + k;
+    b.textContent = k === 0 ? say('today') : k === 1 ? say('tomorrow') : say('week')[dt.getDay()] + ', ' + dt.getDate();
+    b.setAttribute('aria-pressed', String(k === state.day));
+    b.onclick = () => { state.day = k; update(); };
+    days.appendChild(b);
+  });
+  const slots = $('slots'); slots.innerHTML = '';
+  SLOTS.forEach((s, k) => {
+    const i = indexFor(state.day, s.hour);
+    const t = i >= 0 ? state.data.hourly.temperature_2m[i] : null;
+    const b = document.createElement('button');
+    b.id = 'slot-' + k;
+    b.innerHTML = say('slots')[k] + ' <small>' + pad(s.hour) + ':00' + (t != null ? ' · ' + tTxt(t) : '') + '</small>';
+    b.setAttribute('aria-pressed', String(s.hour === state.hour));
+    b.onclick = () => { state.hour = s.hour; update(); };
+    slots.appendChild(b);
+  });
+  $('hour').value = state.hour; $('hour-out').textContent = pad(state.hour) + ':00';
+  const tr = $('terrain'); tr.querySelectorAll('button').forEach(b => b.remove());
+  TERRAINS.forEach(key => {
+    const b = document.createElement('button');
+    b.className = 'chip'; b.id = 'terrain-' + key;
+    b.textContent = key === 'auto' ? say('terrains').auto + ': ' + say('terrainLow')[state.autoTerrain] : say('terrains')[key];
+    b.setAttribute('aria-pressed', String(state.terrainPick === key));
+    b.onclick = () => { state.terrainPick = key; store.set('terrain', key); update(); };
+    tr.appendChild(b);
+  });
+  $('unit-note').textContent = say('unitNote')(unitTxt());
+  $('u-ms').setAttribute('aria-pressed', String(state.unit === 'ms'));
+  $('u-kmh').setAttribute('aria-pressed', String(state.unit === 'kmh'));
+}
+
+function renderInfo(c){
+  $('cap-temp').textContent = tTxt(c.temp);
+  $('cap-cond').textContent = LANG === 'en' ? (WMO_EN[c.w.text] || c.w.text) : c.w.text;
+  $('cap-feel').textContent = c.feel != null ? say('feel') + tTxt(c.feel) : '';
+  $('cap-sun').textContent = say('rise') + ' ' + c.riseTxt + ' · ' + say('set') + ' ' + c.setTxt;
+  $('f-rise').textContent = c.riseTxt;
+  $('f-set').textContent = c.setTxt;
+  const hm = hrs => { const m = Math.round(hrs*60); return Math.floor(m/60) + say('h') + pad(m % 60) + say('min'); };
+  $('f-daylen').textContent = say('day') + hm(c.sunset - c.sunrise);
+  const now = placeNow();
+  if (state.day === 0 && now.date === state.data.daily.time[0]){
+    $('f-setnote').textContent = now.hour < c.sunrise ? say('notUp') : now.hour > c.sunset ? say('down') : say('inT') + hm(c.sunset - now.hour);
+  } else $('f-setnote').textContent = '';
+  if (c.uv != null){
+    const [col, txt] = uvInfo(c.uv);
+    $('f-uv').innerHTML = '<span class="uv-dot" style="background:' + col + '"></span>' + c.uv.toFixed(1);
+    $('f-uvtxt').textContent = txt + (c.uvMax != null ? ', ' + say('max') + c.uvMax.toFixed(1) : '');
+  } else { $('f-uv').textContent = '—'; $('f-uvtxt').textContent = say('noData'); }
+  $('f-prec').textContent = c.prec.toFixed(1) + say('mm');
+  $('f-cloud').textContent = say('cloud') + Math.round(c.cloud) + '%';
+  $('f-gust').textContent = c.gust != null ? fmtV(c.gust) + ' ' + unitTxt() : '—';
+  if (c.water != null){ $('f-water').textContent = tTxt(c.water); $('f-watertxt').textContent = say(state.demo ? 'sample' : 'seaNear'); }
+  else { $('f-water').textContent = '—'; $('f-watertxt').textContent = say('noSea'); }
+  const tb = $('levels'); tb.innerHTML = '';
+  c.profile.slice().reverse().forEach(p => {
+    const k = LEVELS.findIndex(l => l.h === p.h);
+    const tr = document.createElement('tr');
+    tr.setAttribute('aria-selected', String(k === state.sel));
+    tr.innerHTML = '<td>' + (p.h === 2 ? say('ground') : p.h + ' ' + say('m') + ' / ' + Math.round(p.h*3.281) + ' ft') + '</td>' +
+      '<td><span class="spd" style="background:' + speedColor(p.v) + '">' + (p.est ? '≈' : '') + fmtV(p.v) + '</span> <span class="est">' + unitTxt() + '</span></td>' +
+      '<td><span class="arrow">' + arrowFor(p.d) + '</span> ' + dirTxt(p.d) + ' <span class="est">' + Math.round(p.d) + '°</span></td>';
+    tr.onclick = () => { state.sel = k; renderInfo(c); };
+    tb.appendChild(tr);
+  });
+}
+
+function update(){
+  if (!state.data) return;
+  renderControls();
+  const c = current();
+  if (!c) return;
+  renderInfo(c);
+  scene.set(c);
+}
+
+$('hour').addEventListener('input', e => { state.hour = +e.target.value; update(); });
+const setLang = l => { LANG = l; try { localStorage.setItem('veter.lang', JSON.stringify(l)); } catch(e){} applyLang(); if (state.demo) showBanner(say('demo')); renderPlaceBar(); update(); };
+$('l-ru').onclick = () => setLang('ru');
+$('l-en').onclick = () => setLang('en');
+$('u-ms').onclick = () => { state.unit = 'ms'; store.set('unit2','ms'); update(); };
+$('u-kmh').onclick = () => { state.unit = 'kmh'; store.set('unit2','kmh'); update(); };
+$('fav-btn').onclick = () => {
+  const k = state.favs.findIndex(f => sameSpot(f, state.place));
+  if (k >= 0) state.favs.splice(k, 1); else state.favs.push({name:state.place.name, lat:state.place.lat, lon:state.place.lon, pop:state.place.pop || 0});
+  store.set('favs', state.favs); renderPlaceBar();
+};
+$('search-toggle').onclick = () => { const s = $('search'); s.hidden = !s.hidden; if (!s.hidden) $('search-input').focus(); };
+$('search-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const q = $('search-input').value.trim(); if (!q) return;
+  const box = $('results'); box.innerHTML = '<span class="note">' + say('searching') + '</span>';
+  try {
+    const j = await getJSON('https://geocoding-api.open-meteo.com/v1/search?count=8&language=' + LANG + '&name=' + encodeURIComponent(q));
+    box.innerHTML = '';
+    if (!j.results || !j.results.length){ box.innerHTML = '<span class="note">' + say('notFound') + '</span>'; return; }
+    j.results.forEach(p => {
+      const b = document.createElement('button');
+      const sm = document.createElement('small'); sm.textContent = [p.admin1, p.country].filter(Boolean).join(', ');
+      b.append(p.name + ' ', sm);
+      b.onclick = () => setPlace({name:p.name, lat:p.latitude, lon:p.longitude, pop:p.population || 0});
+      box.appendChild(b);
+    });
+  } catch(err){
+    box.innerHTML = '<span class="note">' + say('noSearch') + '</span>';
+  }
+});
+
+async function placeName(lat, lon){
+  try {
+    const j = await getJSON('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=' + lat + '&longitude=' + lon + '&localityLanguage=' + LANG, 6000);
+    return j.city || j.locality || j.principalSubdivision || null;
+  } catch(e){ return null; }
+}
+function locate(auto){
+  if (!navigator.geolocation){ if (!auto) showBanner(say('noGeo')); return; }
+  if (!auto) $('geo-btn').textContent = say('geoBusy');
+  navigator.geolocation.getCurrentPosition(async pos => {
+    $('geo-btn').textContent = say('geo');
+    const lat = +pos.coords.latitude.toFixed(4), lon = +pos.coords.longitude.toFixed(4);
+    const name = await placeName(lat, lon);
+    setPlace({name: name || say('myPlace'), lat, lon, geo:true});
+  }, () => {
+    $('geo-btn').textContent = say('geo');
+    if (!auto) showBanner(say('geoFail'));
+  }, {timeout:12000, maximumAge:300000});
+}
+$('geo-btn').onclick = () => locate(false);
+
+function showBanner(t){ const b = $('banner'); b.textContent = t; b.hidden = !t; }
+
+async function setPlace(p){
+  state.place = p; $('search').hidden = true;
+  store.set('place', p);
+  await load();
+}
+
+async function load(){
+  $('place-name').textContent = state.place.name;
+  const r = await loadAll(state.place);
+  state.data = r.data; state.marine = r.marine; state.demo = r.demo;
+  [state.autoTerrain, state.terrainWhy] = r.demo ? ['forest', 'пример'] : detectTerrain(r);
+  if (state.day >= state.data.daily.time.length) state.day = 0;
+  if (state.hour == null) state.hour = defaultHour();
+  showBanner(r.demo ? say('demo') : '');
+  update();
+}
+
+// ================= scene =================
+const scene = (() => {
+  const cv = $('scene'), ctx = cv.getContext('2d');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let W = 360, H = 460, dpr = 1, c = null, t0 = performance.now();
+  let mast = null, cloudSprites = [];
+  let streaks = [], drops = [], splashes = [], stars = [], waves = [], flash = 0, bolt = null, pillHits = [], built = false;
+  const MONO = getComputedStyle(document.body).getPropertyValue('--mono') || 'monospace';
+
+  function mulberry(a){ return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  let R = mulberry(1);
+  const rnd = (a,b) => a + R()*(b-a);
+  const uOf = d => -Math.sin(d*Math.PI/180); // +1: wind blows toward the east, drawn to the right
+
+  function layer(w, h){
+    const k = document.createElement('canvas');
+    k.width = Math.max(1, Math.ceil(w*dpr)); k.height = Math.max(1, Math.ceil(h*dpr));
+    const x = k.getContext('2d'); x.scale(dpr, dpr);
+    return [k, x];
+  }
+  function hex(h){ const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+  function mix(a, b, t){ const A = hex(a), B = hex(b); return 'rgb(' + A.map((v,i) => Math.round(lerp(v, B[i], t))).join(',') + ')'; }
+  function shade(a, f){ const A = hex(a); return 'rgb(' + A.map(v => Math.round(clamp(v*f, 0, 255))).join(',') + ')'; }
+
+  // left/right edge of the tower photo (fractions of its width), 41 rows from top to bottom
+  const TOWER_PROFILE = [[0.492, 0.492], [0.49, 0.492], [0.481, 0.499], [0.474, 0.506], [0.454, 0.526], [0.454, 0.521], [0.447, 0.515], [0.447, 0.546], [0.461, 0.589], [0.416, 0.582], [0.456, 0.539], [0.452, 0.551], [0.449, 0.53], [0.425, 0.553], [0.422, 0.555], [0.431, 0.537], [0.443, 0.539], [0.44, 0.566], [0.438, 0.562], [0.416, 0.564], [0.407, 0.571], [0.429, 0.553], [0.425, 0.557], [0.422, 0.562], [0.418, 0.564], [0.413, 0.569], [0.411, 0.598], [0.404, 0.598], [0.402, 0.578], [0.4, 0.582], [0.396, 0.584], [0.391, 0.589], [0.389, 0.591], [0.384, 0.596], [0.378, 0.6], [0.375, 0.604], [0.369, 0.609], [0.364, 0.613], [0.362, 0.618], [0.324, 0.654], [0.324, 0.656]];
+  const TOWER_TOP = 0.1; // row of the top (120 m) platform in the tower photo
+  const IMG = {};
+  let photosReady = false, crewReady = false;
+  (() => {
+    const im = new Image();
+    im.onload = () => { IMG.tower = im; photosReady = true; build(); if (reduce) draw(performance.now()); };
+    im.src = 'img/tower.webp';
+    // the four of us, drawn in the same flat style
+    let left = 4;
+    [1, 2, 3, 4].forEach(i => {
+      const p = new Image();
+      p.onload = () => { IMG['crew' + i] = p; if (--left === 0){ crewReady = true; build(); if (reduce) draw(performance.now()); } };
+      p.src = 'img/crew' + i + '.webp';
+    });
+  })();
+
+  function geom(){
+    const groundY = H*0.78, topY = H*0.12;
+    const yOf = h => groundY - Math.sqrt(Math.max(h,0))/Math.sqrt(120)*(groundY - topY);
+    const tx = W*(photosReady ? 0.8 : 0.76), half = Math.max(5, W*0.014);
+    // the tower photo: base on the ground, 120 m platform at topY
+    const th = (groundY + 3 - topY)/(1 - TOWER_TOP), tw = th*445/900, tTop = groundY + 3 - th;
+    const edge = (y, side) => { const r = TOWER_PROFILE[Math.round(clamp((y - tTop)/th, 0, 1)*40)]; return tx - tw/2 + r[side]*tw; };
+    return {groundY, topY, yOf, tx, half, th, tw, tTop, edge};
+  }
+  // ---- mood: sky colors and how the static layers are tinted ----
+  function mood(){
+    const k = c.w.kind, wet = ['rain','storm','snow','drizzle'].includes(k);
+    const grey = wet || k === 'fog' || k === 'overcast' || c.cloud > 80;
+    const golden = !c.night && (Math.abs(c.hour - c.sunset) < 1.8 || Math.abs(c.hour - c.sunrise) < 1.4);
+    if (c.night) return {sky: grey ? ['#141b27','#2c3646'] : ['#050c22','#1c2b4d'], haze: grey ? '#2c3646' : '#1c2b4d', tint:'rgba(6,12,34,0.62)', cloud:['#3a4558','#1d2433'], night:true};
+    if (k === 'storm') return {sky:['#2e3440','#5a6372'], haze:'#5a6372', tint:'rgba(25,30,45,0.36)', cloud:['#7b828d','#3c424d']};
+    if (grey) return {sky:['#78889a','#bcc6d0'], haze:'#bcc6d0', tint:'rgba(70,82,98,0.22)', cloud: wet ? ['#a2a9b3','#5b636f'] : ['#d9dee4','#8e98a6']};
+    if (golden) return {sky:['#3e5d9a','#f6b07a'], haze:'#f2b98e', tint:'rgba(255,120,50,0.14)', cloud:['#fff0e0','#b07c8a']};
+    return {sky:['#2a78cc','#acd7f6'], haze:'#bfe0f7', tint:null, cloud:['#ffffff','#9fb0c6']};
+  }
+  function tintLayer(x, w, h, m){
+    if (!m.tint) return;
+    x.save(); x.globalCompositeOperation = 'source-atop'; x.fillStyle = m.tint; x.fillRect(0, 0, w, h); x.restore();
+  }
+
+  function seasonOf(){
+    if (Math.abs(c.lat) < 23) return 'summer';
+    const mm = c.lat < 0 ? (c.month + 6) % 12 : c.month;
+    if (mm >= 5 && mm <= 7) return 'summer';
+    if (mm === 8 || mm === 9) return 'autumn';
+    if (mm === 3 || mm === 4) return 'spring';
+    return 'winter';
+  }
+  function isSnowy(){ return c.w.kind === 'snow' || (c.temp <= -1 && seasonOf() === 'winter'); }
+
+  // ---- flat illustrated style: layered silhouettes that fade into the haze ----
+  function rgbOf(s){
+    if (s[0] === '#') return hex(s);
+    return s.match(/\d+/g).slice(0, 3).map(Number);
+  }
+  function mixc(a, b, t){ const A = rgbOf(a), B = rgbOf(b); return 'rgb(' + A.map((v,i) => Math.round(lerp(v, B[i], t))).join(',') + ')'; }
+
+  function palette(){
+    const k = c.w.kind, wet = ['rain','storm','snow','drizzle'].includes(k);
+    const grey = wet || k === 'fog' || k === 'overcast' || c.cloud > 80;
+    const golden = !c.night && (Math.abs(c.hour - c.sunset) < 1.8 || Math.abs(c.hour - c.sunrise) < 1.4);
+    let P;
+    if (c.night) P = {sky:['#0a1230','#2c3c69'], far:'#34426e', near:'#05091a', cloud:['#3d4872','#252e52'], sun:'#f3eedb'};
+    else if (k === 'storm') P = {sky:['#252a38','#5d6474'], far:'#5b6271', near:'#11151e', cloud:['#6f7686','#3b4150'], sun:'#e9e6dc'};
+    else if (grey) P = {sky:['#687a8e','#ccd3d8'], far:'#a9b3bd', near:'#1f2a33', cloud:['#e2e6ea','#9ea8b3'], sun:'#f6f3ea'};
+    else if (golden) P = {sky:['#33447c','#f7a467'], far:'#e58f6c', near:'#26121f', cloud:['#ffd6ad','#c87574'], sun:'#fff0c9'};
+    else P = {sky:['#3a80c8','#f3e0b2'], far:'#a7c9cf', near:'#0f2b26', cloud:['#ffffff','#e6cfae'], sun:'#fff6dc'};
+    // each kind of place pulls the near colors toward its own hue in daylight
+    const hue = {forest:'#0d2a1f', mountains:'#1b2738', sea:'#0b2c38', city:'#1b2433', field:'#4a3510'}[c.terrain];
+    if (hue && !c.night && k !== 'storm') P.near = mixc(P.near, hue, golden ? 0.35 : 0.65);
+    P.snow = isSnowy();
+    P.col = d => mixc(P.far, P.near, clamp(d, 0, 1));
+    // snow lies on the open ground; trees and rocks stay dark
+    // open ground keeps its own color (green grass, golden wheat), dimmed by night and bad weather
+    const gb = {forest:'#4c7a4a', mountains:'#62804f', field:'#d9a845', city:'#58784e', sea:'#58784e'}[c.terrain] || '#58784e';
+    const dimG = c.night ? 0.85 : k === 'storm' ? 0.6 : grey ? 0.35 : golden ? 0.3 : 0;
+    const base = mixc(gb, P.near, dimG);
+    P.ground = d => P.snow ? mixc(mixc(P.far, '#ffffff', c.night ? 0.15 : 0.7), P.near, d*0.35) : mixc(mixc(base, P.far, 0.5*(1 - d)), P.near, d*0.45);
+    return P;
+  }
+
+  function ridge(baseY, amp, rough, n){
+    let pts = [baseY - amp*R(), baseY - amp*R()];
+    let disp = amp;
+    while (pts.length < n){
+      const nx = [];
+      for (let i = 0; i < pts.length - 1; i++){ nx.push(pts[i]); nx.push((pts[i] + pts[i+1])/2 + (R() - 0.5)*disp); }
+      nx.push(pts[pts.length - 1]); pts = nx; disp *= rough;
+    }
+    return pts.map((y, i) => [i/(pts.length - 1)*W, Math.min(baseY, y)]);
+  }
+  function fillRidge(x, pts, bottom, fill){
+    x.fillStyle = fill; x.beginPath(); x.moveTo(0, bottom);
+    pts.forEach(([px, py]) => x.lineTo(px, py)); x.lineTo(W, bottom); x.closePath(); x.fill();
+  }
+  const wavy = (x, base, amp, f, ph) => base - amp*(0.55*Math.sin(x*f + ph) + 0.3*Math.sin(x*f*2.3 + ph*1.7) + 0.15*Math.sin(x*f*5.1 + ph*0.6));
+  function fillLine(x, fn, bottom, fill){
+    x.fillStyle = fill; x.beginPath(); x.moveTo(0, bottom);
+    for (let px = 0; px <= W + 4; px += 4) x.lineTo(px, fn(px));
+    x.lineTo(W, bottom); x.closePath(); x.fill();
+  }
+  // Firewatch-style pine: a stack of jagged tiers
+  function pine(x, cx, base, h, col, snowCol){
+    const w = h*0.34, tiers = 6;
+    x.fillStyle = col;
+    x.fillRect(cx - h*0.018, base - h*0.12, h*0.036, h*0.12);
+    x.beginPath(); x.moveTo(cx, base - h);
+    for (let i = 1; i <= tiers; i++){
+      const f = i/tiers, y = base - h + f*h*0.9, half = w*(0.25 + 0.75*f)/2;
+      x.lineTo(cx + half, y); x.lineTo(cx + half*0.55, y - h*0.03);
+    }
+    for (let i = tiers; i >= 1; i--){
+      const f = i/tiers, y = base - h + f*h*0.9, half = w*(0.25 + 0.75*f)/2;
+      x.lineTo(cx - half*0.55, y - h*0.03); x.lineTo(cx - half, y);
+    }
+    x.closePath(); x.fill();
+    if (snowCol){
+      x.fillStyle = snowCol;
+      for (let i = 1; i <= tiers; i++){
+        const f = i/tiers, y = base - h + f*h*0.9, half = w*(0.25 + 0.75*f)/2;
+        x.beginPath(); x.moveTo(cx - half*0.8, y - h*0.012); x.lineTo(cx, y - h*0.07); x.lineTo(cx + half*0.8, y - h*0.012); x.lineTo(cx, y - h*0.035); x.closePath(); x.fill();
+      }
+    }
+  }
+  function pineRow(x, base, hgt, col, gap, snowCol){
+    for (let px = -10; px < W + 14; px += gap*(0.6 + R()*0.8)) pine(x, px, base + 2, hgt*(0.6 + R()*0.6), col, snowCol);
+    x.fillStyle = col; x.fillRect(0, base, W, 3);
+  }
+  function roundTree(x, cx, base, h, col){
+    x.fillStyle = col; x.fillRect(cx - h*0.035, base - h*0.45, h*0.07, h*0.45);
+    x.beginPath(); x.ellipse(cx, base - h*0.62, h*0.36, h*0.3, 0, 0, 6.29); x.fill();
+    x.beginPath(); x.ellipse(cx - h*0.2, base - h*0.52, h*0.2, h*0.17, 0, 0, 6.29); x.fill();
+    x.beginPath(); x.ellipse(cx + h*0.22, base - h*0.54, h*0.2, h*0.16, 0, 0, 6.29); x.fill();
+  }
+
+  // everything behind the tower
+  function buildBack(g, P){
+    const [k, x] = layer(W, H);
+    const T = c.terrain, gy = g.groundY, snowCap = c.night ? '#c9d2e6' : '#f4f6fa';
+    const snowOnTrees = P.snow ? mixc(P.far, '#ffffff', c.night ? 0.25 : 0.75) : null;
+    // a pale band of haze along the horizon
+    const hz = x.createLinearGradient(0, gy - H*0.3, 0, gy);
+    hz.addColorStop(0, 'rgba(255,255,255,0)'); hz.addColorStop(1, mixc(P.sky[1], P.far, 0.3));
+    x.fillStyle = hz; x.fillRect(0, gy - H*0.3, W, H*0.3);
+    if (T === 'mountains'){
+      const p1 = ridge(gy - H*0.33, H*0.2, 0.55, 65);
+      fillRidge(x, p1, H, P.col(0.12));
+      // snow on the high peaks
+      x.save(); x.beginPath(); x.moveTo(0, H); p1.forEach(([px, py]) => x.lineTo(px, py)); x.lineTo(W, H); x.closePath(); x.clip();
+      fillLine(x, px => wavy(px, gy - H*0.36, H*0.025, 0.05, 1.3), 0, snowCap); x.restore();
+      fillRidge(x, ridge(gy - H*0.2, H*0.12, 0.5, 65), H, P.col(0.3));
+      pineRow(x, gy - H*0.1, H*0.06, P.col(0.5), 7, null);
+      fillLine(x, px => wavy(px, gy - H*0.08, H*0.015, 0.012, 2), H, P.ground(0.55));
+      pineRow(x, gy - H*0.03, H*0.09, P.col(0.7), 11, snowOnTrees);
+    } else if (T === 'forest'){
+      fillLine(x, px => wavy(px, gy - H*0.2, H*0.05, 0.009, 0.4), H, P.col(0.15));
+      pineRow(x, gy - H*0.15, H*0.07, P.col(0.32), 8, null);
+      fillLine(x, px => wavy(px, gy - H*0.1, H*0.03, 0.014, 2.2), H, P.col(0.45));
+      pineRow(x, gy - H*0.08, H*0.1, P.col(0.55), 9, snowOnTrees);
+      fillLine(x, px => wavy(px, gy - H*0.04, H*0.012, 0.02, 1.1), H, P.ground(0.6));
+      pineRow(x, gy - H*0.035, H*0.15, P.col(0.75), 16, snowOnTrees);
+    } else if (T === 'sea'){
+      const hor = gy - H*0.17;
+      // a far headland with a lighthouse
+      fillLine(x, px => px < W*0.42 ? wavy(px, hor - H*0.03 - (W*0.42 - px)*0.06, H*0.01, 0.05, 0.3) : hor + 1, hor + 2, P.col(0.2));
+      const lx = W*0.2, ly = hor - H*0.03 - W*0.22*0.06;
+      x.fillStyle = P.col(0.3); x.beginPath(); x.moveTo(lx - 4, ly); x.lineTo(lx - 2.5, ly - H*0.06); x.lineTo(lx + 2.5, ly - H*0.06); x.lineTo(lx + 4, ly); x.fill();
+      x.fillStyle = c.night ? '#ffe9a0' : mixc(P.col(0.3), '#ffffff', 0.4); x.fillRect(lx - 3, ly - H*0.067, 6, 4);
+      // water in flat bands, lighter toward the horizon
+      const wc = c.night ? '#0d1a36' : P.snow || c.w.kind === 'storm' ? mixc(P.far, '#1c3244', 0.5) : mixc(P.far, '#1b6f8a', 0.55);
+      for (let i = 0; i < 4; i++){ x.fillStyle = mixc(P.sky[1], wc, 0.35 + i*0.2); x.fillRect(0, hor + (gy - hor)*i/4*0.8, W, H); }
+      // sand dunes the tower stands on
+      const sand = P.snow ? P.ground(0.3) : c.night ? '#2b2b3e' : mixc('#e4c48e', P.far, c.w.kind === 'storm' ? 0.5 : 0.15);
+      fillLine(x, px => wavy(px, gy - H*0.03, H*0.018, 0.012, 0.8), H, sand);
+      fillLine(x, px => wavy(px, gy + H*0.01, H*0.01, 0.02, 2.4), H, mixc(sand, P.near, 0.18));
+    } else if (T === 'city'){
+      fillLine(x, px => wavy(px, gy - H*0.1, H*0.03, 0.01, 0.7), H, P.col(0.12));
+      // two rows of buildings; windows light up after dark
+      const lit = c.night || c.hour >= c.sunset - 0.5 || c.w.kind === 'storm';
+      [[0.28, 0.18, 0.2], [0.17, 0.4, 0.45]].forEach(([hh, d, wf]) => {
+        let px = -6;
+        while (px < W){
+          const bw = W*rnd(0.06, 0.12), bh = H*hh*rnd(0.45, 1), top = gy - H*0.04 - bh;
+          x.fillStyle = P.col(d); x.fillRect(px, top, bw, bh + H*0.1);
+          if (R() < 0.25){ x.fillRect(px + bw*0.45, top - H*0.03, 1.5, H*0.03); }
+          for (let wy = top + 6; wy < gy - H*0.06; wy += 7) for (let wx = px + 3; wx < px + bw - 4; wx += 6){
+            if (R() < (lit ? 0.35 : 0.5)){ x.fillStyle = lit ? 'rgba(255,214,140,' + (0.5 + R()*0.4) + ')' : mixc(P.col(d), P.sky[1], wf); x.fillRect(wx, wy, 3, 3.5); }
+          }
+          px += bw + rnd(0, 4);
+        }
+      });
+      fillLine(x, px => gy - H*0.035, H, P.ground(0.55));
+      for (let px = W*0.05; px < W; px += W*0.22) roundTree(x, px + rnd(-8, 8), gy - H*0.03, H*rnd(0.07, 0.1), P.col(0.62));
+    } else {
+      // field: rolling hills, crop rows, a lone tree
+      fillLine(x, px => wavy(px, gy - H*0.13, H*0.03, 0.008, 0.2), H, P.col(0.12));
+      fillLine(x, px => wavy(px, gy - H*0.08, H*0.025, 0.011, 1.7), H, P.ground(0.3));
+      roundTree(x, W*0.3, wavy(W*0.3, gy - H*0.08, H*0.025, 0.011, 1.7) + 2, H*0.09, P.col(0.5));
+      fillLine(x, px => wavy(px, gy - H*0.03, H*0.015, 0.014, 0.9), H, P.ground(0.45));
+      x.strokeStyle = mixc(P.ground(0.45), P.near, 0.25); x.lineWidth = 1;
+      for (let i = 1; i < 6; i++){
+        const yy = gy - H*0.03 + i*i*1.2;
+        x.beginPath(); for (let px = 0; px <= W; px += 6) x.lineTo(px, wavy(px, yy, H*0.012, 0.014, 0.9)); x.stroke();
+      }
+    }
+    // the ground the tower stands on
+    fillLine(x, px => gy - 2 + Math.sin(px*0.02)*1.5, H, P.ground(T === 'sea' ? 0.3 : 0.65));
+    return k;
+  }
+
+  // everything in front of the tower
+  function buildFront(g, P){
+    const [k, x] = layer(W, H);
+    const T = c.terrain, gy = g.groundY;
+    const fgc = T === 'sea' && !P.snow ? mixc(c.night ? '#2b2b3e' : '#d8b67e', P.near, 0.35) : P.ground(0.85);
+    fillLine(x, px => wavy(px, gy + H*0.06, H*0.02, 0.009, 2.9), H, fgc);
+    fillLine(x, px => wavy(px, gy + H*0.13, H*0.015, 0.012, 0.5), H, P.snow ? P.ground(0.95) : mixc(fgc, P.near, 0.5));
+    if (T === 'city'){
+      // a path and a street lamp
+      x.fillStyle = mixc(P.ground(0.9), P.far, 0.25);
+      x.beginPath(); x.moveTo(W*0.02, H); x.lineTo(W*0.18, gy + H*0.07); x.lineTo(W*0.3, gy + H*0.07); x.lineTo(W*0.62, H); x.fill();
+      const lx = W*0.62, lt = gy - H*0.08;
+      x.fillStyle = P.near; x.fillRect(lx - 1.5, lt, 3, gy + H*0.08 - lt); x.fillRect(lx - 1.5, lt, 12, 3);
+      if (c.night || c.hour >= c.sunset - 0.5){
+        const lg = x.createRadialGradient(lx + 10, lt + 4, 0, lx + 10, lt + 4, 40);
+        lg.addColorStop(0, 'rgba(255,214,140,0.55)'); lg.addColorStop(1, 'rgba(255,214,140,0)');
+        x.fillStyle = lg; x.fillRect(lx - 30, lt - 36, 80, 80);
+      }
+    }
+    return k;
+  }
+
+  // flat clouds: rounded tops on a flat base, a darker belly
+  function makeFlatCloud(w, h, top, under){
+    const [k, x] = layer(w, h);
+    x.fillStyle = top;
+    const n = 5 + Math.floor(R()*3);
+    for (let i = 0; i < n; i++){
+      const f = (i + 0.5)/n, r = h*(0.22 + 0.3*Math.sin(Math.PI*f))*(0.8 + R()*0.35);
+      x.beginPath(); x.arc(w*0.08 + f*w*0.84, h*0.82 - r*0.75, r, 0, 6.29); x.fill();
+    }
+    x.beginPath(); x.roundRect ? x.roundRect(w*0.03, h*0.62, w*0.94, h*0.2, h*0.1) : x.rect(w*0.03, h*0.62, w*0.94, h*0.2); x.fill();
+    x.globalCompositeOperation = 'source-atop'; x.fillStyle = under; x.fillRect(0, h*0.66, w, h);
+    return k;
+  }
+
+  // the crew, drawn as flat figures with their own colors: blue helmet, coffee, cap, orange helmet
+  function figure(x, cx, base, h, P, o){
+    const body = mixc(P.near, '#000000', 0.25), rim = mixc(P.sky[1], body, c.night ? 0.75 : 0.45);
+    const acc = col => c.night ? mixc(col, body, 0.55) : P.snow || c.w.kind === 'storm' ? mixc(col, body, 0.25) : col;
+    const hr = h*0.065, hy = base - h + hr*1.1, sh = base - h*0.8, hip = base - h*0.47, sw = h*o.wide, hw = h*0.088;
+    x.lineCap = 'round'; x.lineJoin = 'round';
+    const paint = (col, dx) => {
+      x.fillStyle = col; x.strokeStyle = col;
+      const X = cx + dx, ww = h*0.088;
+      // legs: two tapered trousers with a gap between them
+      [-1, 1].forEach(sd => {
+        x.beginPath(); x.moveTo(X + sd*h*0.006, hip); x.lineTo(X + sd*ww, hip); x.lineTo(X + sd*h*0.07, base - h*0.03); x.lineTo(X + sd*h*0.02, base - h*0.03); x.closePath(); x.fill();
+        // boot
+        x.beginPath(); x.ellipse(X + sd*h*0.047, base - h*0.018, h*0.04, h*0.02, 0, 0, 6.29); x.fill();
+      });
+      // torso: broad shoulders narrowing to the waist
+      x.beginPath(); x.moveTo(X - sw, sh + h*0.04); x.quadraticCurveTo(X - sw, sh, X - sw*0.55, sh - h*0.012); x.lineTo(X + sw*0.55, sh - h*0.012);
+      x.quadraticCurveTo(X + sw, sh, X + sw, sh + h*0.04); x.lineTo(X + ww*1.02, hip + h*0.015); x.lineTo(X - ww*1.02, hip + h*0.015); x.closePath(); x.fill();
+      // neck and head
+      x.fillRect(X - hr*0.42, hy, hr*0.84, sh - hy); x.beginPath(); x.ellipse(X, hy, hr*0.9, hr, 0, 0, 6.29); x.fill();
+      // arms: upper arm and forearm
+      x.lineWidth = h*0.048;
+      const arm = (sd, pose) => {
+        const sx = X + sd*sw*0.86, sy = sh + h*0.035;
+        let ex, ey, hx, hy2;
+        if (pose === 'cup'){ ex = sx + sd*h*0.03; ey = sy + h*0.15; hx = X + sd*sw*0.28; hy2 = sy + h*0.11; }
+        else if (pose === 'hip'){ ex = sx + sd*h*0.085; ey = sy + h*0.12; hx = X + sd*ww*1.05; hy2 = hip - h*0.03; }
+        else if (pose === 'pocket'){ ex = sx + sd*h*0.03; ey = sy + h*0.16; hx = X + sd*ww*0.95; hy2 = hip + h*0.04; }
+        else { ex = sx + sd*h*0.022; ey = sy + h*0.16; hx = sx + sd*h*0.012; hy2 = sy + h*0.31; }
+        x.beginPath(); x.moveTo(sx, sy); x.lineTo(ex, ey); x.lineTo(hx, hy2); x.stroke();
+        x.beginPath(); x.arc(hx, hy2, h*0.027, 0, 6.29); x.fill();
+        return [hx, hy2];
+      };
+      hands = [arm(-1, o.arms[0]), arm(1, o.arms[1])];
+    };
+    let hands = [];
+    // a thin rim of sky light on one side, then the figure itself
+    paint(rim, -1.2); paint(body, 0);
+    // details
+    if (o.helmet){
+      x.fillStyle = acc(o.helmet);
+      x.beginPath(); x.arc(cx, hy - hr*0.15, hr*1.12, Math.PI, 0); x.fill(); x.fillRect(cx - hr*1.35, hy - hr*0.2, hr*2.7, hr*0.3);
+    }
+    if (o.cap){ x.fillStyle = acc(o.cap); x.beginPath(); x.arc(cx, hy - hr*0.2, hr*1.05, Math.PI, 0); x.fill(); x.fillRect(cx - hr*0.6, hy - hr*0.25, hr*1.9, hr*0.28); }
+    if (o.vest){ x.fillStyle = acc(o.vest); x.fillRect(cx - sw*0.62, sh + h*0.005, sw*0.24, h*0.31); x.fillRect(cx + sw*0.38, sh + h*0.005, sw*0.24, h*0.31); }
+    if (o.harness){ x.strokeStyle = acc(o.harness); x.lineWidth = h*0.014; x.beginPath(); x.moveTo(cx - sw*0.5, sh); x.lineTo(cx - hw*0.4, hip); x.moveTo(cx + sw*0.5, sh); x.lineTo(cx + hw*0.4, hip); x.moveTo(cx - hw*1.05, hip - h*0.01); x.lineTo(cx + hw*1.05, hip - h*0.01); x.stroke(); }
+    if (o.gloves){
+      x.fillStyle = acc(o.gloves);
+      hands.forEach(([gx, gy2]) => { x.beginPath(); x.arc(gx, gy2, h*0.031, 0, 6.29); x.fill(); });
+    }
+    if (o.coffee){
+      const cx2 = hands[1][0], cy = hands[1][1] + h*0.01;
+      x.fillStyle = acc('#f2efe8'); x.beginPath(); x.moveTo(cx2 - h*0.022, cy - h*0.05); x.lineTo(cx2 + h*0.022, cy - h*0.05); x.lineTo(cx2 + h*0.017, cy + h*0.01); x.lineTo(cx2 - h*0.017, cy + h*0.01); x.fill();
+      x.fillStyle = acc('#8a5a34'); x.fillRect(cx2 - h*0.02, cy - h*0.03, h*0.04, h*0.018);
+      // a curl of steam on a cold day
+      if (c.temp < 12){ x.strokeStyle = 'rgba(255,255,255,0.45)'; x.lineWidth = 1.2; x.beginPath(); x.moveTo(cx2, cy - h*0.06); x.bezierCurveTo(cx2 - 4, cy - h*0.09, cx2 + 4, cy - h*0.11, cx2, cy - h*0.15); x.stroke(); }
+    }
+  }
+  function buildCrew(g, P){
+    const [k, x] = layer(W, H), ph = H*0.25;
+    crewSprites = [];
+    if (crewReady){
+      // the same light as the rest of the scene: darker at night and in storms, warmer at sunset
+      const k2 = c.w.kind, grey = ['rain','snow','drizzle','fog','overcast'].includes(k2) || c.cloud > 80;
+      const golden = !c.night && (Math.abs(c.hour - c.sunset) < 1.8 || Math.abs(c.hour - c.sunrise) < 1.4);
+      const tint = c.night ? [P.near, 0.55] : k2 === 'storm' ? [P.near, 0.35] : grey ? [P.far, 0.15] : golden ? ['#ff9a5a', 0.14] : null;
+      // back row first: orange helmet behind the blue helmet on his side, the cap to the right behind the coffee
+      [['crew4', 0.1, H*0.285, 30], ['crew3', 0.47, H*0.28, 28], ['crew1', 0.22, H*0.31, 8], ['crew2', 0.35, H*0.305, 10]].forEach(([key, fx, hh, dy], i) => {
+        const im = IMG[key], ww = im.width*hh/im.height, [kk, xx] = layer(ww, hh);
+        xx.drawImage(im, 0, 0, ww, hh);
+        if (tint){ xx.globalCompositeOperation = 'source-atop'; xx.globalAlpha = tint[1]; xx.fillStyle = tint[0]; xx.fillRect(0, 0, ww, hh); }
+        crewSprites.push({img: kk, w: ww, h: hh, x: W*fx, base: H - dy, ph: i*2.3 + 0.7, sp: 0.85 + i*0.11});
+      });
+      return k;
+    }
+    // back row first: orange helmet behind the blue helmet on his side, the cap to the right behind the coffee
+    figure(x, W*0.09, H - 30, ph*0.93, P, {wide:0.125, helmet:'#f07a1a', gloves:'#f2cf1d', harness:'#3d3d3d', arms:['hip','hip']});
+    figure(x, W*0.46, H - 28, ph*0.94, P, {wide:0.12, cap:'#3a4a5c', arms:['pocket','pocket']});
+    figure(x, W*0.2, H - 10, ph, P, {wide:0.12, helmet:'#2c7fe0', harness:'#2e5d8a', arms:['down','down']});
+    figure(x, W*0.335, H - 12, ph*0.98, P, {wide:0.13, coffee:true, vest:'#9a6a3a', arms:['down','cup']});
+    return k;
+  }
+  // ---- the met mast: guyed lattice painted in aviation red and white ----
+  function buildMast(g, m){
+    const [k, x] = layer(W, H);
+    if (photosReady){
+      const bw = g.tw*0.42, bs = x.createRadialGradient(g.tx, 0, 0, g.tx, 0, bw);
+      bs.addColorStop(0, 'rgba(0,0,0,0.4)'); bs.addColorStop(1, 'rgba(0,0,0,0)');
+      x.save(); x.translate(0, g.groundY + 2); x.scale(1, 0.18); x.fillStyle = bs; x.beginPath(); x.arc(g.tx, 0, bw, 0, 6.29); x.fill(); x.restore();
+      x.drawImage(IMG.tower, g.tx - g.tw/2, g.tTop, g.tw, g.th);
+      // thin steel booms to the right carry the instruments at each measured height
+      c.profile.forEach(p => {
+        const y = g.yOf(p.h), r = g.edge(y, 1);
+        x.strokeStyle = '#5d646d'; x.lineWidth = 1.6;
+        x.beginPath(); x.moveTo(r - 2, y); x.lineTo(r + 24, y); x.stroke();
+        x.lineWidth = 1.1; x.beginPath(); x.moveTo(r + 22, y); x.lineTo(r + 22, y - 8); x.stroke();
+        x.beginPath(); x.moveTo(r + 10, y); x.lineTo(r + 10, y - 5); x.stroke();
+        x.strokeStyle = 'rgba(40,45,50,0.6)'; x.lineWidth = 0.7; x.beginPath(); x.moveTo(r + 22, y); x.lineTo(r, y - 9); x.stroke();
+      });
+      tintLayer(x, W, H, m);
+      // a touch of the same haze as the hills behind it
+      x.save(); x.globalCompositeOperation = 'source-atop'; x.globalAlpha = 0.12; x.fillStyle = P.far; x.fillRect(0, 0, W, H); x.restore();
+      return k;
+    }
+    const L = g.tx - g.half, Rr = g.tx + g.half;
+    // guy wires
+    x.strokeStyle = 'rgba(40,45,55,0.5)'; x.lineWidth = 0.8;
+    [60, 120, 175].forEach((h, i) => {
+      const y = g.yOf(h);
+      [[g.tx - W*(0.2 + i*0.06), g.groundY + 4], [g.tx + W*(0.13 + i*0.04), g.groundY + 4]].forEach(([ax, ay]) => { x.beginPath(); x.moveTo(g.tx, y); x.lineTo(ax, ay); x.stroke(); });
+    });
+    // painted bands
+    const bands = 9, span = g.groundY - g.topY;
+    for (let b = 0; b < bands; b++){
+      const y1 = g.groundY - span*b/bands, y2 = g.groundY - span*(b+1)/bands;
+      const col = b % 2 ? '#f1f1ee' : '#d8432d';
+      x.strokeStyle = col; x.lineWidth = 2.4;
+      x.beginPath(); x.moveTo(L, y1); x.lineTo(L, y2); x.moveTo(Rr, y1); x.lineTo(Rr, y2); x.stroke();
+      x.lineWidth = 1;
+      const step = g.half*2.2;
+      for (let y = y1; y > y2 + 0.5; y -= step){
+        const yn = Math.max(y2, y - step);
+        x.beginPath(); x.moveTo(L, y); x.lineTo(Rr, (y + yn)/2); x.lineTo(L, yn); x.stroke();
+        x.beginPath(); x.moveTo(L, yn); x.lineTo(Rr, yn); x.stroke();
+      }
+    }
+    // shading on the right leg
+    x.strokeStyle = 'rgba(0,0,0,0.25)'; x.lineWidth = 1; x.beginPath(); x.moveTo(Rr + 1, g.groundY); x.lineTo(Rr + 1, g.topY); x.stroke();
+    // ladder line
+    x.strokeStyle = 'rgba(60,60,60,0.5)'; x.beginPath(); x.moveTo(g.tx, g.groundY); x.lineTo(g.tx, g.topY); x.stroke();
+    // top: lightning rod
+    x.strokeStyle = '#3d434c'; x.lineWidth = 1.6; x.beginPath(); x.moveTo(g.tx, g.topY); x.lineTo(g.tx, g.topY - 24); x.stroke();
+    // concrete base and a small equipment cabinet
+    x.fillStyle = '#9a9c9f'; x.fillRect(L - 6, g.groundY - 3, (Rr - L) + 12, 6);
+    x.fillStyle = '#c9ccd0'; x.fillRect(Rr + 6, g.groundY - 12, 12, 12); x.fillStyle = '#8b9096'; x.fillRect(Rr + 6, g.groundY - 13, 13, 2);
+    // booms at every measured height
+    c.profile.forEach(p => {
+      const y = g.yOf(p.h);
+      x.strokeStyle = '#4a515b'; x.lineWidth = 2;
+      x.beginPath(); x.moveTo(L - 3, y); x.lineTo(Rr + 22, y); x.stroke();
+      x.lineWidth = 1.4; x.beginPath(); x.moveTo(Rr + 22, y); x.lineTo(Rr + 22, y - 9); x.stroke();
+      x.beginPath(); x.moveTo(Rr + 10, y); x.lineTo(Rr + 10, y - 6); x.stroke();
+    });
+    tintLayer(x, W, H, m);
+    return k;
+  }
+
+  let crewSprites = [], back = null, front = null, crewLayer = null, P = null, birds = [], tufts = [], bigPines = [];
+  function build(){
+    if (!c) return;
+    R = mulberry(c.seed + 17);
+    const g = geom(), m = mood();
+    P = palette();
+    back = buildBack(g, P); front = buildFront(g, P); crewLayer = buildCrew(g, P); mast = buildMast(g, m);
+    // clouds
+    const n = Math.round(clamp(c.cloud/100*7, 0, 7));
+    cloudSprites = [];
+    for (let j = 0; j < n; j++){
+      const w = W*rnd(0.3, 0.6), h = w*0.36;
+      cloudSprites.push({img: makeFlatCloud(w, h, P.cloud[0], P.cloud[1]), w, h, x: rnd(-0.3, 1.0)*W, y: rnd(0.03, 0.32)*H, s: rnd(0.6, 1.1)});
+    }
+    // tall pines in the foreground that sway with the ground wind
+    bigPines = [];
+    if (c.terrain === 'forest' || c.terrain === 'mountains'){
+      [[-0.04, 0.62], [1.02, 0.5]].forEach(([fx, fh], j) => {
+        const hh = H*fh, ww = hh*0.4, [kk, xx] = layer(ww, hh);
+        pine(xx, ww/2, hh, hh, mixc(P.near, '#000000', 0.2), P.snow ? mixc(P.far, '#ffffff', c.night ? 0.2 : 0.65) : null);
+        bigPines.push({img: kk, w: ww, h: hh, x: fx*W, ph: j*1.7});
+      });
+    }
+    tufts = []; for (let j = 0; j < 26; j++) tufts.push({x: rnd(0, W), y: rnd(g.groundY + H*0.07, H), h: rnd(6, 14), ph: rnd(0, 6.28)});
+    birds = c.night || ['storm','rain'].includes(c.w.kind) ? [] : [0, 1, 2].map(j => ({x: rnd(0, W*0.6), y: H*rnd(0.25, 0.4), ph: rnd(0, 6.28), s: rnd(0.8, 1.2)}));
+    streaks = [];
+    c.profile.forEach((p, k) => {
+      const nn = Math.round(clamp(3 + p.v*1.1, 3, 16));
+      for (let j = 0; j < nn; j++) streaks.push({k, x: rnd(0, W), dy: rnd(-9, 9), len: rnd(0.7, 1.3), ph: rnd(0, 6.28)});
+    });
+    const kind = c.w.kind, pr = ['rain','storm','drizzle','snow'].includes(kind);
+    const nd = !pr ? 0 : kind === 'snow' ? clamp(110 + c.prec*60, 110, 280) : kind === 'drizzle' ? 140 : clamp(160 + c.prec*70, 160, 420);
+    drops = []; for (let j = 0; j < nd; j++) drops.push({x: rnd(-W*0.2, W*1.2), y: rnd(-H, H), s: rnd(0.5, 1.2), ph: rnd(0, 6.28)});
+    splashes = [];
+    stars = []; for (let j = 0; j < 90; j++) stars.push({x: rnd(0, W), y: rnd(0, H*0.6), r: rnd(0.3, 1.4), ph: rnd(0, 6.28)});
+    waves = []; for (let j = 0; j < 40; j++) waves.push({x: rnd(0, W), f: R(), ph: rnd(0, 6.28)});
+    built = true;
+  }
+  function resize(){
+    const w = cv.parentElement.clientWidth;
+    W = w; H = Math.round(clamp(w*1.25, 400, 660));
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr); cv.style.height = H + 'px';
+    build();
+  }
+
+  function set(cur){ c = cur; build(); if (reduce) draw(performance.now()); }
+
+  // ---------------- per-frame drawing ----------------
+  function draw(now){
+    if (!c || !built) return;
+    const t = (now - t0)/1000;
+    const g = geom();
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    const gr = ctx.createLinearGradient(0, 0, 0, g.groundY); gr.addColorStop(0, P.sky[0]); gr.addColorStop(1, P.sky[1]);
+    ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H);
+
+    if (c.night && c.cloud < 75){
+      stars.forEach(s => { ctx.globalAlpha = clamp(0.45 + 0.55*Math.sin(t*1.3 + s.ph), 0.1, 1); ctx.fillStyle = '#ffffff'; ctx.fillRect(s.x, s.y, s.r*1.4, s.r*1.4); });
+      ctx.globalAlpha = 1;
+    }
+    const body = drawSun(g, t);
+
+    // clouds drift with the 120 m wind
+    const p120 = c.profile[5], uc = uOf(p120.d)*p120.v;
+    if (c.cloud > 85){ ctx.fillStyle = P.cloud[1]; ctx.globalAlpha = 0.5; ctx.fillRect(0, 0, W, H*0.08); ctx.globalAlpha = 1; }
+    cloudSprites.forEach(cl => {
+      if (!reduce) cl.x += uc*0.01*cl.s;
+      if (cl.x > W + 20) cl.x = -cl.w - 20; if (cl.x < -cl.w - 20) cl.x = W + 20;
+      ctx.drawImage(cl.img, cl.x, cl.y, cl.w, cl.h);
+    });
+    drawBirds(t);
+
+    ctx.drawImage(back, 0, 0, W, H);
+    if (c.terrain === 'sea') drawWater(g, t, body);
+    drawStreaks(g, t);
+    ctx.drawImage(mast, 0, 0, W, H);
+    drawMastParts(g, t);
+
+    const pg = c.profile[0], ug = uOf(pg.d);
+    ctx.drawImage(front, 0, 0, W, H);
+    bigPines.forEach(tr => {
+      const amp = clamp(0.008 + pg.v*0.004, 0.008, 0.08);
+      const sway = (reduce ? 0 : Math.sin(t*(1.1 + pg.v*0.1) + tr.ph)*amp) + ug*clamp(pg.v*0.008, 0, 0.12);
+      ctx.save(); ctx.translate(tr.x, H + 2); ctx.transform(1, 0, -sway, 1, 0, 0);
+      ctx.drawImage(tr.img, -tr.w/2, -tr.h, tr.w, tr.h); ctx.restore();
+    });
+    drawTufts(t, pg, ug);
+    if (crewSprites.length) drawCrew(t, pg, ug); else ctx.drawImage(crewLayer, 0, 0, W, H);
+    drawPrecip(g, t);
+
+    if (c.w.kind === 'fog'){
+      for (let i = 0; i < 3; i++){
+        const y = g.groundY - H*(0.1 + i*0.12), fgx = ctx.createLinearGradient(0, y - H*0.12, 0, y + H*0.12);
+        fgx.addColorStop(0, 'rgba(225,230,236,0)'); fgx.addColorStop(0.5, 'rgba(225,230,236,0.45)'); fgx.addColorStop(1, 'rgba(225,230,236,0)');
+        ctx.fillStyle = fgx; ctx.fillRect(0, y - H*0.12, W, H*0.24);
+      }
+      ctx.fillStyle = 'rgba(220,226,232,0.25)'; ctx.fillRect(0, 0, W, H);
+    }
+    if (c.w.kind === 'storm' && !reduce) drawLightning(g);
+    drawPills(g);
+  }
+
+  // flat sun or moon with soft rings
+  function drawSun(g, t){
+    let p;
+    if (!c.night) p = clamp((c.hour - c.sunrise)/(c.sunset - c.sunrise), 0.04, 0.96);
+    else { const len = 24 - (c.sunset - c.sunrise); const h = c.hour > c.sunset ? c.hour - c.sunset : c.hour + 24 - c.sunset; p = clamp(h/len, 0.08, 0.92); }
+    const x = W*(0.1 + 0.5*p), y = g.groundY - Math.sin(Math.PI*p)*(g.groundY - H*0.2) - 14;
+    const wet = ['rain','storm','snow','drizzle','fog'].includes(c.w.kind);
+    const dim = wet && c.cloud > 80 ? 0.12 : c.cloud > 85 ? 0.25 : 1;
+    const Rs = Math.max(14, W*0.045)*(c.night ? 0.75 : 1);
+    ctx.save(); ctx.globalAlpha = dim;
+    [3.2, 2.2, 1.55].forEach((f, i) => {
+      ctx.fillStyle = mixc(P.sky[1], P.sun, 0.25 + i*0.2); ctx.globalAlpha = dim*(0.18 + i*0.12)*(1 + (reduce ? 0 : 0.08*Math.sin(t*0.8 + i)));
+      ctx.beginPath(); ctx.arc(x, y, Rs*f, 0, 6.29); ctx.fill();
+    });
+    ctx.globalAlpha = dim; ctx.fillStyle = P.sun; ctx.beginPath(); ctx.arc(x, y, Rs, 0, 6.29); ctx.fill();
+    if (c.night){ ctx.fillStyle = P.sky[0]; ctx.globalAlpha = dim*0.9; ctx.beginPath(); ctx.arc(x + Rs*0.45, y - Rs*0.25, Rs*0.85, 0, 6.29); ctx.fill(); }
+    ctx.restore();
+    return {x, y, day: !c.night, dim};
+  }
+
+  // the sea: drifting glints and a sun path on the flat water bands
+  function drawWater(g, t, body){
+    const hor = g.groundY - H*0.17, depth = H*0.12;
+    const v = c.profile[1].v, u = uOf(c.profile[1].d);
+    if (body.dim > 0.5){
+      ctx.fillStyle = mixc(P.sun, P.sky[1], 0.3);
+      for (let i = 0; i < 10; i++){
+        const f = i/10, w = 8 + f*30;
+        ctx.globalAlpha = 0.6*(1 - f); ctx.fillRect(body.x - w/2 + Math.sin(t*1.6 + i)*3, hor + 2 + f*depth, w, 1.6);
+      }
+      ctx.globalAlpha = 1;
+    }
+    waves.forEach(w => {
+      const y = hor + 3 + w.f*depth;
+      if (!reduce) w.x += u*(0.12 + v*0.04)*(0.4 + w.f);
+      if (w.x > W + 20) w.x = -20; if (w.x < -20) w.x = W + 20;
+      ctx.globalAlpha = clamp((v - 1)/10, 0.2, 0.8)*(0.5 + 0.5*Math.sin(t*1.4 + w.ph));
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(w.x, y, 4 + w.f*14, 1 + w.f);
+    });
+    ctx.globalAlpha = 1;
+  }
+  function drawStreaks(g, t){
+    ctx.lineCap = 'round';
+    c.profile.forEach((p, k) => {
+      const y = g.yOf(p.h), u = uOf(p.d), dir = Math.sign(u || 1);
+      const speed = (4 + p.v*14)*(Math.abs(u) < 0.15 ? 0.3 : 1);
+      ctx.strokeStyle = 'rgba(255,255,255,' + clamp(0.16 + p.v*0.04, 0.18, 0.7) + ')';
+      ctx.lineWidth = k === state.sel ? 2.2 : 1.3;
+      streaks.forEach(s => {
+        if (s.k !== k) return;
+        if (!reduce) s.x += dir*speed/60;
+        if (s.x > W + 40) s.x = -40; if (s.x < -40) s.x = W + 40;
+        const L = (10 + p.v*4.5)*s.len*dir, yy = y + s.dy + Math.sin(t*2 + s.ph + s.x*0.02)*2;
+        ctx.beginPath(); ctx.moveTo(s.x, yy); ctx.quadraticCurveTo(s.x - L*0.5, yy - 2, s.x - L, yy); ctx.stroke();
+      });
+    });
+  }
+
+  function drawMastParts(g, t){
+    const col = c.night ? '#aab3bf' : '#2f353d';
+    c.profile.forEach(p => {
+      const y = g.yOf(p.h), u = uOf(p.d), Rr = photosReady ? g.edge(y, 1) : g.tx + g.half;
+      // cup anemometer
+      const ax = Rr + 22, ay = y - 9, rot = reduce ? 0.5 : t*(0.6 + p.v*0.9);
+      ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 1.1;
+      for (let j = 0; j < 3; j++){
+        const a = rot + j*2.094, ex = ax + Math.cos(a)*6.5, ey = ay + Math.sin(a)*2;
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ex, ey); ctx.stroke();
+        ctx.beginPath(); ctx.arc(ex, ey, 1.9, 0, 6.29); ctx.fill();
+      }
+      // wind vane: tail points downwind, shorter when the wind blows toward or away from us
+      const vx = Rr + 10, vy = y - 6, len = 8*Math.max(0.25, Math.abs(u)), dir = Math.sign(u || 1);
+      ctx.beginPath(); ctx.moveTo(vx - dir*len*0.6, vy); ctx.lineTo(vx + dir*len, vy); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(vx + dir*len, vy - 3); ctx.lineTo(vx + dir*(len + 3), vy); ctx.lineTo(vx + dir*len, vy + 3); ctx.closePath(); ctx.fill();
+    });
+    const on = Math.sin(t*2.6) > 0.3 || reduce;
+    const by = photosReady ? g.tTop + g.th*0.006 : g.topY - 25;
+    if (on){
+      const bg = ctx.createRadialGradient(g.tx, by, 0, g.tx, by, 14); bg.addColorStop(0, 'rgba(255,60,50,0.9)'); bg.addColorStop(1, 'rgba(255,60,50,0)');
+      ctx.fillStyle = bg; ctx.fillRect(g.tx - 14, by - 14, 28, 28);
+    }
+    ctx.fillStyle = on ? '#ff5a4a' : '#7a2a24'; ctx.beginPath(); ctx.arc(g.tx, by, 3, 0, 6.29); ctx.fill();
+  }
+
+  // the crew stands and breathes: drawn in thin slices so the body can sway and the head can turn a little
+  function drawCrew(t, pg, ug){
+    const lean = ug*clamp(pg.v*0.04, 0, 0.5);
+    crewSprites.forEach(p => {
+      const T = reduce ? 0 : t*p.sp;
+      const sway = Math.sin(T*0.9 + p.ph)*0.6 + Math.sin(T*0.37 + p.ph*1.7)*0.4 + lean;
+      const look = Math.sin(T*0.23 + p.ph*2.1)*0.7 + Math.sin(T*0.61 + p.ph)*0.3;
+      const breath = 1 + Math.sin(T*1.6 + p.ph)*0.007, shift = Math.sin(T*0.31 + p.ph)*p.h*0.006;
+      const sw = p.w*0.45, sh = ctx.createRadialGradient(p.x + shift, 0, 0, p.x + shift, 0, sw);
+      sh.addColorStop(0, 'rgba(0,0,0,0.3)'); sh.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.save(); ctx.translate(0, p.base - 2); ctx.scale(1, 0.16); ctx.fillStyle = sh; ctx.beginPath(); ctx.arc(p.x + shift, 0, sw, 0, 6.29); ctx.fill(); ctx.restore();
+      const n = Math.ceil(p.h/2), ih = p.img.height, hh = p.h*breath;
+      for (let i = 0; i < n; i++){
+        const f = 1 - (i + 0.5)/n; // 1 at the top of the head, 0 at the feet
+        const head = Math.max(0, f - 0.84)/0.16;
+        const dx = shift*f + sway*f*f*p.h*0.018 + look*head*p.h*0.012;
+        ctx.drawImage(p.img, 0, i*ih/n, p.img.width, ih/n + 1, p.x - p.w/2 + dx, p.base - hh + i*hh/n, p.w, hh/n + 0.6);
+      }
+    });
+  }
+
+  // grass tufts in the foreground bend with the ground wind
+  function drawTufts(t, pg, ug){
+    if (c.terrain === 'city') return;
+    const col = P.snow ? mixc(P.near, P.far, 0.35) : c.terrain === 'field' ? mixc('#c9a24a', P.near, c.night ? 0.8 : 0.35) : mixc(P.near, '#000000', 0.15);
+    ctx.strokeStyle = col; ctx.lineCap = 'round';
+    tufts.forEach((s, i) => {
+      const bend = (reduce ? 0 : Math.sin(t*2.4 + s.ph)*(1 + pg.v*0.35)) + ug*pg.v*1.1;
+      ctx.lineWidth = 1.4;
+      for (let b = -1; b <= 1; b++){
+        ctx.beginPath(); ctx.moveTo(s.x + b*2, s.y); ctx.quadraticCurveTo(s.x + b*2 + bend*0.3, s.y - s.h*0.6, s.x + b*3.5 + bend, s.y - s.h*(1 - Math.abs(b)*0.2)); ctx.stroke();
+      }
+    });
+  }
+  // a few birds riding the 40 m wind
+  function drawBirds(t){
+    if (!birds.length) return;
+    const p = c.profile[3], u = uOf(p.d);
+    ctx.strokeStyle = mixc(P.near, P.sky[1], 0.35); ctx.lineWidth = 1.4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    birds.forEach(b => {
+      if (!reduce) b.x += (0.25 + u*p.v*0.04)*b.s;
+      if (b.x > W + 20) b.x = -20; if (b.x < -20) b.x = W + 20;
+      const f = reduce ? 0.5 : Math.sin(t*6*b.s + b.ph), s = 5*b.s, y = b.y + Math.sin(t*0.7 + b.ph)*4;
+      ctx.beginPath(); ctx.moveTo(b.x - s, y - f*s*0.6); ctx.quadraticCurveTo(b.x - s*0.4, y - s*0.3, b.x, y); ctx.quadraticCurveTo(b.x + s*0.4, y - s*0.3, b.x + s, y - f*s*0.6); ctx.stroke();
+    });
+  }
+  function drawPrecip(g, t){
+    if (!drops.length) return;
+    const pg = c.profile[1], u = uOf(pg.d)*pg.v, snow = c.w.kind === 'snow';
+    ctx.lineCap = 'round';
+    drops.forEach(d => {
+      if (snow){
+        if (!reduce){ d.y += (35 + 25*d.s)/60; d.x += (u*16 + Math.sin(t*1.4 + d.ph)*14)/60; }
+        const r = 1.2 + d.s*2;
+        const sg = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, r); sg.addColorStop(0, 'rgba(255,255,255,0.95)'); sg.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(d.x, d.y, r, 0, 6.29); ctx.fill();
+      } else {
+        const vy = (c.w.kind === 'drizzle' ? 280 : 560)*d.s, vx = u*48;
+        if (!reduce){ d.y += vy/60; d.x += vx/60; }
+        const len = c.w.kind === 'drizzle' ? 6 : 16*d.s;
+        const rg = ctx.createLinearGradient(d.x, d.y - len, d.x, d.y);
+        rg.addColorStop(0, 'rgba(210,228,255,0)'); rg.addColorStop(1, 'rgba(210,228,255,0.75)');
+        ctx.strokeStyle = rg; ctx.lineWidth = c.w.kind === 'drizzle' ? 0.9 : 1.3;
+        ctx.beginPath(); ctx.moveTo(d.x - vx/vy*len, d.y - len); ctx.lineTo(d.x, d.y); ctx.stroke();
+      }
+      const floor = g.groundY + (H - g.groundY)*d.s*0.8;
+      if (d.y > floor){
+        if (!snow && splashes.length < 60) splashes.push({x: d.x, y: floor, a: 1});
+        d.y = rnd(-40, 0); d.x = rnd(-W*0.2, W*1.2);
+      }
+      if (d.x > W*1.25) d.x = -W*0.2; if (d.x < -W*0.25) d.x = W*1.2;
+    });
+    ctx.strokeStyle = 'rgba(220,235,255,0.6)'; ctx.lineWidth = 1;
+    splashes = splashes.filter(s => {
+      s.a -= 0.08; if (s.a <= 0) return false;
+      ctx.globalAlpha = s.a; ctx.beginPath(); ctx.ellipse(s.x, s.y, (1 - s.a)*6 + 1, (1 - s.a)*1.6 + 0.4, 0, 0, 6.29); ctx.stroke();
+      return true;
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  function drawLightning(g){
+    if (!bolt && Math.random() < 0.005){
+      const pts = []; let x = rnd(W*0.1, W*0.6), y = H*0.12;
+      while (y < g.groundY){ pts.push([x, y]); x += rnd(-14, 14); y += rnd(10, 22); }
+      bolt = {pts, life: 1}; flash = 1;
+    }
+    if (flash > 0){ ctx.fillStyle = 'rgba(235,240,255,' + flash*0.5 + ')'; ctx.fillRect(0, 0, W, H); flash -= 0.07; }
+    if (bolt){
+      ctx.save(); ctx.shadowColor = 'rgba(200,215,255,0.9)'; ctx.shadowBlur = 14;
+      ctx.strokeStyle = 'rgba(255,255,255,' + bolt.life + ')'; ctx.lineWidth = 2.2;
+      ctx.beginPath(); bolt.pts.forEach(([x,y], i) => i ? ctx.lineTo(x,y) : ctx.moveTo(x,y)); ctx.stroke(); ctx.restore();
+      bolt.life -= 0.06; if (bolt.life <= 0) bolt = null;
+    }
+  }
+
+  function drawPills(g){
+    pillHits = [];
+    ctx.font = '600 10px ' + MONO; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+    if (false) c.profile.forEach(p => {
+      ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.7)'; ctx.shadowBlur = 3; ctx.fillStyle = '#ffffff';
+      ctx.fillText(p.h + ' м', Math.min(g.tx + g.half + 32, W - ctx.measureText(p.h + ' м').width - 4), g.yOf(p.h) + 1); ctx.restore();
+    });
+    // keep the two-line pills from overlapping where the low levels crowd together
+    const ys = []; c.profile.forEach((p, k) => { ys[k] = k ? Math.min(g.yOf(p.h), ys[k-1] - 33) : g.yOf(p.h); });
+    c.profile.forEach((p, k) => {
+      const y = ys[k], right = photosReady ? g.edge(g.yOf(p.h), 0) - 6 : g.tx - g.half - 7;
+      const txt = (p.est ? '≈' : '') + fmtV(p.v), un = ' ' + unitTxt(), lab = p.h + say('m') + '/' + Math.round(p.h*3.281) + 'ft';
+      ctx.font = '700 13px ' + MONO; const tw = ctx.measureText(txt).width;
+      ctx.font = '600 9.5px ' + MONO; const uw = ctx.measureText(un).width, lw = ctx.measureText(lab).width;
+      const w = Math.max(22 + tw + uw, lw + 10) + 6, h = 30, x = right - w;
+      ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.3)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 1;
+      ctx.fillStyle = speedColor(p.v); roundRect(x, y - h/2, w, h, 9); ctx.fill(); ctx.restore();
+      // lower band carries the height in metres and feet
+      ctx.save(); roundRect(x, y - h/2, w, h, 9); ctx.clip();
+      ctx.fillStyle = 'rgba(13,27,42,0.8)'; ctx.fillRect(x, y + 2, w, h/2); ctx.restore();
+      if (k === state.sel){ ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; roundRect(x - 2, y - h/2 - 2, w + 4, h + 4, 11); ctx.stroke(); }
+      // same rule as the table: the arrow points where the wind blows to, north is up
+      ctx.save(); ctx.translate(x + 11, y - 7); ctx.rotate((p.d + 180)*Math.PI/180);
+      ctx.strokeStyle = '#0d1b2a'; ctx.fillStyle = '#0d1b2a'; ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(0, 5); ctx.lineTo(0, -2.5); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(3.4, -1.2); ctx.lineTo(-3.4, -1.2); ctx.closePath(); ctx.fill();
+      ctx.restore();
+      ctx.fillStyle = '#0d1b2a'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+      ctx.font = '700 13px ' + MONO; ctx.fillText(txt, x + 21, y - 7);
+      ctx.font = '600 9.5px ' + MONO; ctx.fillText(un, x + 21 + tw, y - 6.5);
+      ctx.fillStyle = '#ffffff'; ctx.fillText(lab, x + (w - lw)/2, y + 8.5);
+      pillHits.push({k, x, y: y - h/2, w, h});
+    });
+  }
+  function roundRect(x, y, w, h, r){
+    ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+
+  cv.addEventListener('click', e => {
+    const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+    const hit = pillHits.find(p => x >= p.x - 6 && x <= p.x + p.w + 6 && y >= p.y - 6 && y <= p.y + p.h + 6);
+    if (hit){ state.sel = hit.k; const cur = current(); if (cur) renderInfo(cur); if (reduce) draw(performance.now()); }
+  });
+
+  let lastW = 0;
+  new ResizeObserver(() => { const w = cv.parentElement.clientWidth; if (w === lastW) return; lastW = w; resize(); if (reduce) draw(performance.now()); }).observe(cv.parentElement);
+  function loop(now){ draw(now); requestAnimationFrame(loop); }
+  if (!reduce) requestAnimationFrame(loop);
+  return {set};
+})();
+
+applyLang();
+load();
+if (state.place.geo || !store.get('place', null)) locate(true);
+})();
+</script>
+
+<script>
+if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+</script>
+</html>
