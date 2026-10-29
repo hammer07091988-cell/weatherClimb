@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_label">Ветер на вышке</string>
+    <string name="widget_desc">Погода сейчас и ветер на 10, 40, 80 и 120 м</string>
+</resources>

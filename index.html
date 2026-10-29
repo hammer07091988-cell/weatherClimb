@@ -574,11 +574,11 @@ function update(){
   scene.set(c);
 }
 
-const setLang = l => { LANG = l; try { localStorage.setItem('veter.lang', JSON.stringify(l)); } catch(e){} applyLang(); if (state.demo) showBanner(say('demo')); renderPlaceBar(); update(); };
+const setLang = l => { LANG = l; try { localStorage.setItem('veter.lang', JSON.stringify(l)); } catch(e){} applyLang(); if (state.demo) showBanner(say('demo')); renderPlaceBar(); update(); syncWidget(); };
 $('l-ru').onclick = () => setLang('ru');
 $('l-en').onclick = () => setLang('en');
-$('u-ms').onclick = () => { state.unit = 'ms'; store.set('unit2','ms'); update(); };
-$('u-kmh').onclick = () => { state.unit = 'kmh'; store.set('unit2','kmh'); update(); };
+$('u-ms').onclick = () => { state.unit = 'ms'; store.set('unit2','ms'); update(); syncWidget(); };
+$('u-kmh').onclick = () => { state.unit = 'kmh'; store.set('unit2','kmh'); update(); syncWidget(); };
 $('fav-btn').onclick = () => {
   const k = state.favs.findIndex(f => sameSpot(f, state.place));
   if (k >= 0) state.favs.splice(k, 1); else state.favs.push({name:state.place.name, lat:state.place.lat, lon:state.place.lon, pop:state.place.pop || 0});
@@ -653,6 +653,17 @@ async function load(){
   if (state.hour == null) state.hour = defaultHour();
   showBanner(r.demo ? say('demo') : '');
   update();
+  if (!r.demo) syncWidget();
+}
+
+// the Android app has a home-screen widget: tell it which place to show
+function syncWidget(){
+  try {
+    const C = window.Capacitor;
+    if (!C || !C.nativePromise || !C.isNativePlatform || !C.isNativePlatform()) return;
+    C.nativePromise('WidgetBridge', 'setPlace', {lat: state.place.lat, lon: state.place.lon, name: state.place.name, lang: LANG, unit: state.unit, terrain: state.autoTerrain})
+      .catch(() => {});
+  } catch(e){}
 }
 
 // ================= scene =================

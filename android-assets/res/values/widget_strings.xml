@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_label">Wind on the tower</string>
+    <string name="widget_desc">Weather now and the wind at 10, 40, 80 and 120 m</string>
+</resources>
