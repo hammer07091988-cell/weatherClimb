@@ -78,7 +78,12 @@ jobs:
           KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
         run: |
           if [ -n "$KS_B64" ]; then
-            echo "$KS_B64" | base64 -d > release.keystore
+            # tolerate spaces and line breaks picked up when the secrets were pasted
+            KS_PASS=$(printf '%s' "$KS_PASS" | tr -d ' \r\n\t')
+            printf '%s' "$KS_B64" | tr -d ' \r\n\t' | base64 -d > release.keystore \
+              || { echo "::error::ANDROID_KEYSTORE_B64 is not valid base64 (length ${#KS_B64})"; exit 1; }
+            keytool -list -keystore release.keystore -storepass "$KS_PASS" -alias weatherclimb >/dev/null \
+              || { echo "::error::The keystore did not open: check ANDROID_KEYSTORE_PASS (length ${#KS_PASS}) and that the two secrets are not swapped"; exit 1; }
           else
             KS_PASS=$(openssl rand -hex 16)
             keytool -genkeypair -keystore release.keystore -alias weatherclimb -keyalg RSA -keysize 2048 -validity 10000 \
