@@ -147,7 +147,7 @@ footer a{color:var(--accent)}
   <div class="row">
     <div class="place">
       <button class="star" id="fav-btn" aria-pressed="false" aria-label="Добавить место в избранное">☆</button>
-      <button class="place-name" id="place-name" aria-expanded="false">Москва</button>
+      <button class="place-name" id="place-name" aria-expanded="false">Philadelphia</button>
     </div>
     <div class="actions">
       <button class="btn" id="geo-btn">📍 Где я</button>
@@ -262,7 +262,7 @@ function applyLang(){
   document.getElementById('geo-btn').textContent = say('geo');
 }
 const TERRAINS = ['auto','forest','mountains','sea','city','field'];
-const DEFAULT_PLACE = {name:'Москва', lat:55.7558, lon:37.6173, pop:12000000};
+const DEFAULT_PLACE = {name:'Philadelphia', lat:39.9526, lon:-75.1652, pop:1600000}; // the crew works in the US
 
 const store = {
   get(k, d){ try { const v = localStorage.getItem('veter.' + k); return v == null ? d : JSON.parse(v); } catch(e){ return d; } },
@@ -652,11 +652,13 @@ async function runSearch(){
   if (q.length < 2){ box.innerHTML = ''; return; }
   box.innerHTML = '<span class="note">' + say('searching') + '</span>';
   try {
-    const j = await getJSON('https://geocoding-api.open-meteo.com/v1/search?count=8&language=' + LANG + '&name=' + encodeURIComponent(q));
+    const j = await getJSON('https://geocoding-api.open-meteo.com/v1/search?count=20&language=' + LANG + '&name=' + encodeURIComponent(q));
     if (seq !== searchSeq) return;
     box.innerHTML = '';
     if (!j.results || !j.results.length){ box.innerHTML = '<span class="note">' + say('notFound') + '</span>'; return; }
-    j.results.forEach(p => {
+    // the crew works in the US: American places first, then the rest in the order found
+    j.results.sort((a, b) => (b.country_code === 'US') - (a.country_code === 'US'));
+    j.results.slice(0, 8).forEach(p => {
       const b = document.createElement('button');
       const sm = document.createElement('small'); sm.textContent = [p.admin1, p.country].filter(Boolean).join(', ');
       b.append(p.name + ' ', sm);
