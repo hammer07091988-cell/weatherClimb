@@ -102,15 +102,24 @@ canvas{display:block;width:100%;touch-action:manipulation}
 .spd{display:inline-block;min-width:44px;text-align:center;border-radius:999px;padding:1px 8px;color:#0d1b2a;font-weight:700}
 .arrow{display:inline-block;width:14px;text-align:center}
 .est{color:var(--muted);font-size:12px}
-.hours{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-inline:calc(-1*var(--gut));padding:2px var(--gut);scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
-.hours::-webkit-scrollbar{display:none}
-.hours button{flex:none;width:58px;border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:7px 0 6px;display:flex;flex-direction:column;align-items:center;gap:2px;scroll-snap-align:center}
-.hours button .hh{font-family:var(--mono);font-size:11px;color:var(--muted)}
-.hours button .ic{font-size:18px;line-height:1.2}
-.hours button .tt{font-weight:700;font-size:14px}
-.hours button .ww{font-family:var(--mono);font-size:10px;color:var(--muted)}
-.hours button[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
-.hours button[aria-selected="true"] .hh,.hours button[aria-selected="true"] .ww{color:inherit;opacity:.85}
+.hourbar{padding:2px 2px 0;touch-action:pan-y}
+.hb-top{display:flex;align-items:baseline;gap:10px;margin:0 2px 2px;font-size:14px}
+.hb-top b{font-family:var(--mono);font-size:16px}
+.hb-top span{color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hb-track{position:relative;height:66px}
+.hb-icons,.hb-ticks{position:absolute;left:0;right:0;height:20px;pointer-events:none}
+.hb-icons{top:0}.hb-ticks{bottom:0}
+.hb-icons span,.hb-ticks span{position:absolute;transform:translateX(-50%);font-size:15px;line-height:20px}
+.hb-ticks span{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.hb-bar{position:absolute;left:14px;right:14px;top:29px;height:10px;border-radius:5px;opacity:.9}
+.hb-now{position:absolute;top:24px;width:2px;height:20px;margin-left:-1px;border-radius:1px;background:var(--fg);opacity:.45;pointer-events:none}
+#hour-range{position:absolute;left:0;right:0;top:20px;width:100%;height:28px;margin:0;background:transparent;-webkit-appearance:none;appearance:none;cursor:pointer}
+#hour-range:focus{outline:none}
+#hour-range::-webkit-slider-runnable-track{height:28px;background:transparent}
+#hour-range::-moz-range-track{height:28px;background:transparent}
+#hour-range::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:var(--surface);border:3px solid var(--accent);box-shadow:0 2px 6px rgba(0,0,0,.35)}
+#hour-range::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:var(--surface);border:3px solid var(--accent);box-shadow:0 2px 6px rgba(0,0,0,.35)}
+#hour-range:focus-visible::-webkit-slider-thumb{outline:2px solid var(--accent);outline-offset:2px}
 .scroller{mask-image:linear-gradient(90deg,#000 85%,transparent);-webkit-mask-image:linear-gradient(90deg,#000 85%,transparent);padding-right:24px}
 .unit{display:flex;gap:4px}
 .unit button{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:3px 8px;font-size:12px;font-weight:700}
@@ -157,7 +166,16 @@ footer a{color:var(--accent)}
   <div class="banner" id="banner" hidden></div>
 
   <div class="scroller" id="days"></div>
-  <div class="hours" id="hours" role="listbox" data-i18n-aria="hour" aria-label="Час"></div>
+  <div class="hourbar" id="hourbar">
+    <div class="hb-top"><b id="hb-time">--:--</b><span id="hb-sum"></span></div>
+    <div class="hb-track">
+      <div class="hb-icons" id="hb-icons"></div>
+      <div class="hb-bar" id="hb-bar"></div>
+      <div class="hb-now" id="hb-now" hidden></div>
+      <input type="range" id="hour-range" min="0" max="23" step="1" value="12" data-i18n-aria="hour" aria-label="Час">
+      <div class="hb-ticks" id="hb-ticks"></div>
+    </div>
+  </div>
 
   <div class="scene-wrap">
     <canvas id="scene" data-i18n-aria="sceneAria" aria-label="Вышка с ветром на разных высотах"></canvas>
@@ -231,6 +249,7 @@ const WMO_EN = {'Ясно':'Clear', 'Преимущественно ясно':'M
   'Ледяной дождь':'Freezing rain', 'Небольшой снег':'Light snow', 'Снег':'Snow', 'Сильный снег':'Heavy snow', 'Снежная крупа':'Snow grains',
   'Сильный ливень':'Violent showers', 'Ливень':'Showers', 'Снегопад':'Snow showers', 'Гроза':'Thunderstorm', 'Гроза с градом':'Thunderstorm with hail', 'Облачно':'Cloudy'};
 let LANG = (() => { try { const v = localStorage.getItem('veter.lang'); if (v) return JSON.parse(v); } catch(e){} return (navigator.language || 'ru').toLowerCase().startsWith('ru') ? 'ru' : 'en'; })();
+I18N.mShort = ['м', 'm'];
 const say = k => I18N[k][LANG === 'en' ? 1 : 0];
 function applyLang(){
   document.documentElement.lang = LANG; document.title = say('title');
@@ -510,24 +529,61 @@ function renderControls(){
     b.onclick = () => { state.day = k; update(); };
     days.appendChild(b);
   });
-  // one card per hour of the chosen day: hour, sky, temperature, wind at 10 m
-  const hours = $('hours'); hours.innerHTML = '';
-  const H = state.data.hourly, D = state.data.daily;
-  const rise = hourOf(D.sunrise[state.day]) ?? 7, set = hourOf(D.sunset[state.day]) ?? 18;
-  for (let h = 0; h < 24; h++){
-    const i = indexFor(state.day, h); if (i < 0) continue;
-    const kind = wmo(H.weather_code[i]).kind, night = h < rise || h > set;
-    const ic = {clear: night ? '🌙' : '☀️', cloudy: night ? '☁️' : '⛅', overcast:'☁️', fog:'🌫️', drizzle:'🌦️', rain:'🌧️', snow:'🌨️', storm:'⛈️'}[kind] || '⛅';
-    const b = document.createElement('button');
-    b.id = 'h-' + h; b.setAttribute('role', 'option'); b.setAttribute('aria-selected', String(h === state.hour));
-    b.innerHTML = '<span class="hh">' + pad(h) + ':00</span><span class="ic">' + ic + '</span><span class="tt">' + tTxt(H.temperature_2m[i]) + '</span><span class="ww">' + fmtV(H.wind_speed_10m[i]) + '</span>';
-    b.onclick = () => { state.hour = h; update(); };
-    hours.appendChild(b);
-  }
-  const selH = $('h-' + state.hour);
-  if (selH) requestAnimationFrame(() => { hours.scrollLeft = selH.offsetLeft - hours.clientWidth/2 + selH.offsetWidth/2; });
+  renderHourBar();
   $('u-ms').setAttribute('aria-pressed', String(state.unit === 'ms'));
   $('u-kmh').setAttribute('aria-pressed', String(state.unit === 'kmh'));
+}
+
+// the hour slider: sky icons above, wind at 120 m as the colour of the bar, hours below; drag to change the hour
+let hbKey = '', hbData = null, hbMin = 0, hbMax = 23;
+function hourIcon(i, h){
+  const D = state.data.daily, rise = hourOf(D.sunrise[state.day]) ?? 7, set = hourOf(D.sunset[state.day]) ?? 18;
+  const kind = wmo(state.data.hourly.weather_code[i]).kind, night = h < rise || h > set;
+  return {clear: night ? '🌙' : '☀️', cloudy: night ? '☁️' : '⛅', overcast:'☁️', fog:'🌫️', drizzle:'🌦️', rain:'🌧️', snow:'🌨️', storm:'⛈️'}[kind] || '⛅';
+}
+function renderHourBar(){
+  const H = state.data.hourly, range = $('hour-range');
+  const key = state.day + '|' + H.time[0] + '|' + state.terrainPick + '|' + state.autoTerrain;
+  if (key !== hbKey || hbData !== state.data){
+    hbKey = key; hbData = state.data;
+    const hs = []; for (let h = 0; h < 24; h++) if (indexFor(state.day, h) >= 0) hs.push(h);
+    hbMin = hs[0] ?? 0; hbMax = hs[hs.length - 1] ?? 23;
+    range.min = hbMin; range.max = hbMax;
+    // same spot as the centre of the thumb (28 px wide)
+    const at = h => 'calc(14px + (100% - 28px)*' + ((h - hbMin)/Math.max(1, hbMax - hbMin)).toFixed(4) + ')';
+    const icons = $('hb-icons'), ticks = $('hb-ticks'); icons.innerHTML = ''; ticks.innerHTML = '';
+    const stops = [];
+    hs.forEach(h => {
+      const i = indexFor(state.day, h);
+      stops.push(speedColor(profileAt(i)[5].v) + ' ' + ((h - hbMin)/Math.max(1, hbMax - hbMin)*100).toFixed(1) + '%');
+      if (h % 3) return;
+      const ic = document.createElement('span'); ic.textContent = hourIcon(i, h); ic.style.left = at(h); icons.appendChild(ic);
+      const tk = document.createElement('span'); tk.textContent = pad(h); tk.style.left = at(h); ticks.appendChild(tk);
+    });
+    $('hb-bar').style.background = 'linear-gradient(90deg,' + stops.join(',') + ')';
+    const now = new Date(), nowEl = $('hb-now');
+    nowEl.hidden = state.day !== 0;
+    nowEl.style.left = at(now.getHours() + now.getMinutes()/60);
+  }
+  if (+range.value !== state.hour) range.value = state.hour;
+  const i = indexFor(state.day, state.hour);
+  $('hb-time').textContent = pad(state.hour) + ':00';
+  if (i >= 0){
+    const pr = profileAt(i);
+    $('hb-sum').textContent = hourIcon(i, state.hour) + ' ' + tTxt(state.data.hourly.temperature_2m[i]) + '  ·  💨 10' + say('mShort') + ' ' + fmtV(pr[1].v) + ' / 120' + say('mShort') + ' ' + fmtV(pr[5].v) + ' ' + unitTxt();
+  }
+  range.setAttribute('aria-valuetext', pad(state.hour) + ':00');
+}
+{
+  // follow the finger: redraw once per frame at most, with a light tick on each new hour
+  let pending = false;
+  $('hour-range').addEventListener('input', e => {
+    const h = +e.target.value; if (h === state.hour) return;
+    state.hour = h;
+    try { navigator.vibrate && navigator.vibrate(4); } catch(err){}
+    if (pending) return; pending = true;
+    requestAnimationFrame(() => { pending = false; update(); });
+  });
 }
 
 function renderInfo(c){
@@ -673,6 +729,7 @@ const scene = (() => {
   let W = 360, H = 460, dpr = 1, c = null, t0 = performance.now();
   let mast = null, cloudSprites = [];
   let streaks = [], drops = [], splashes = [], stars = [], waves = [], flash = 0, bolt = null, built = false;
+  let sunP = null, sunNight = null, overcast = false; // where the sun (or moon) is on its arc now; it glides to the chosen hour
   const MONO = getComputedStyle(document.body).getPropertyValue('--mono') || 'monospace';
 
   function mulberry(a){ return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -720,7 +777,7 @@ const scene = (() => {
   // ---- mood: sky colors and how the static layers are tinted ----
   function mood(){
     const k = c.w.kind, wet = ['rain','storm','snow','drizzle'].includes(k);
-    const grey = wet || k === 'fog' || k === 'overcast' || c.cloud > 80;
+    const grey = wet || k === 'fog' || k === 'overcast';
     const golden = !c.night && (Math.abs(c.hour - c.sunset) < 1.8 || Math.abs(c.hour - c.sunrise) < 1.4);
     if (c.night) return {sky: grey ? ['#141b27','#2c3646'] : ['#050c22','#1c2b4d'], haze: grey ? '#2c3646' : '#1c2b4d', tint:'rgba(6,12,34,0.62)', cloud:['#3a4558','#1d2433'], night:true};
     if (k === 'storm') return {sky:['#2e3440','#5a6372'], haze:'#5a6372', tint:'rgba(25,30,45,0.36)', cloud:['#7b828d','#3c424d']};
@@ -752,7 +809,7 @@ const scene = (() => {
 
   function palette(){
     const k = c.w.kind, wet = ['rain','storm','snow','drizzle'].includes(k);
-    const grey = wet || k === 'fog' || k === 'overcast' || c.cloud > 80;
+    const grey = wet || k === 'fog' || k === 'overcast';
     const golden = !c.night && (Math.abs(c.hour - c.sunset) < 1.8 || Math.abs(c.hour - c.sunrise) < 1.4);
     let P;
     if (c.night) P = {sky:['#0a1230','#2c3c69'], far:'#34426e', near:'#05091a', cloud:['#3d4872','#252e52'], sun:'#f3eedb'};
@@ -1002,7 +1059,7 @@ const scene = (() => {
     crewSprites = [];
     if (crewReady){
       // the same light as the rest of the scene: darker at night and in storms, warmer at sunset
-      const k2 = c.w.kind, grey = ['rain','snow','drizzle','fog','overcast'].includes(k2) || c.cloud > 80;
+      const k2 = c.w.kind, grey = ['rain','snow','drizzle','fog','overcast'].includes(k2);
       const golden = !c.night && (Math.abs(c.hour - c.sunset) < 1.8 || Math.abs(c.hour - c.sunrise) < 1.4);
       const tint = c.night ? [P.near, 0.55] : k2 === 'storm' ? [P.near, 0.35] : grey ? [P.far, 0.15] : golden ? ['#ff9a5a', 0.14] : null;
       // back row first: orange helmet behind the blue helmet on his side, the cap to the right behind the coffee
@@ -1093,13 +1150,19 @@ const scene = (() => {
     const g = geom(), m = mood();
     P = palette();
     back = buildBack(g, P); front = buildFront(g, P); crewLayer = buildCrew(g, P); mast = buildMast(g, m);
-    // clouds
-    const n = Math.round(clamp(c.cloud/100*7, 0, 7));
+    // clouds by the forecast: none on a clear day, a few crossing the sun when partly cloudy, a full sky otherwise
+    const ck = c.w.kind, n = ck === 'clear' ? ((c.code|0) === 0 ? 0 : 1) : ck === 'cloudy' ? 3 : 7;
     cloudSprites = [];
     for (let j = 0; j < n; j++){
       const w = W*rnd(0.3, 0.6), h = w*0.36;
       cloudSprites.push({img: makeFlatCloud(w, h, P.cloud[0], P.cloud[1]), w, h, x: rnd(-0.3, 1.0)*W, y: rnd(0.03, 0.32)*H, s: rnd(0.6, 1.1)});
     }
+    if (ck === 'cloudy' && !c.night){
+      // one cloud rides at the sun's height so it keeps passing in front of it
+      const sp = sunAt(g, sunTarget()), cl = cloudSprites[0];
+      cl.y = sp.y - cl.h*0.55; cl.x = sp.x - cl.w*1.6;
+    }
+    overcast = n >= 7;
     // tall pines in the foreground that sway with the ground wind
     bigPines = [];
     if (c.terrain === 'forest' || c.terrain === 'mountains'){
@@ -1143,7 +1206,7 @@ const scene = (() => {
     const gr = ctx.createLinearGradient(0, 0, 0, g.groundY); gr.addColorStop(0, P.sky[0]); gr.addColorStop(1, P.sky[1]);
     ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H);
 
-    if (c.night && c.cloud < 75){
+    if (c.night && !overcast){
       stars.forEach(s => { ctx.globalAlpha = clamp(0.45 + 0.55*Math.sin(t*1.3 + s.ph), 0.1, 1); ctx.fillStyle = '#ffffff'; ctx.fillRect(s.x, s.y, s.r*1.4, s.r*1.4); });
       ctx.globalAlpha = 1;
     }
@@ -1151,9 +1214,10 @@ const scene = (() => {
 
     // clouds drift with the 120 m wind
     const p120 = c.profile[5], uc = uOf(p120.d)*p120.v;
-    if (c.cloud > 85){ ctx.fillStyle = P.cloud[1]; ctx.globalAlpha = 0.5; ctx.fillRect(0, 0, W, H*0.08); ctx.globalAlpha = 1; }
+    if (overcast){ ctx.fillStyle = P.cloud[1]; ctx.globalAlpha = 0.5; ctx.fillRect(0, 0, W, H*0.08); ctx.globalAlpha = 1; }
     cloudSprites.forEach(cl => {
-      if (!reduce) cl.x += uc*0.01*cl.s;
+      // always a slow drift, so clouds keep crossing the sun even on a calm day
+      if (!reduce) cl.x += Math.sign(uc || 1)*Math.max(Math.abs(uc)*0.01, 0.12)*cl.s;
       if (cl.x > W + 20) cl.x = -cl.w - 20; if (cl.x < -cl.w - 20) cl.x = W + 20;
       ctx.drawImage(cl.img, cl.x, cl.y, cl.w, cl.h);
     });
@@ -1190,15 +1254,39 @@ const scene = (() => {
   }
 
   // flat sun or moon with soft rings
+  // share of the day (or night) gone at the chosen hour
+  function sunTarget(){
+    if (!c.night) return clamp((c.hour - c.sunrise)/(c.sunset - c.sunrise), 0.04, 0.96);
+    const len = 24 - (c.sunset - c.sunrise), h = c.hour > c.sunset ? c.hour - c.sunset : c.hour + 24 - c.sunset;
+    return clamp(h/len, 0.08, 0.92);
+  }
+  function sunAt(g, p){
+    return {x: W*(0.1 + 0.5*p), y: g.groundY - Math.sin(Math.PI*p)*(g.groundY - H*0.33) - 14}; // peak stays below the caption
+  }
   function drawSun(g, t){
-    let p;
-    if (!c.night) p = clamp((c.hour - c.sunrise)/(c.sunset - c.sunrise), 0.04, 0.96);
-    else { const len = 24 - (c.sunset - c.sunrise); const h = c.hour > c.sunset ? c.hour - c.sunset : c.hour + 24 - c.sunset; p = clamp(h/len, 0.08, 0.92); }
-    const x = W*(0.1 + 0.5*p), y = g.groundY - Math.sin(Math.PI*p)*(g.groundY - H*0.2) - 14;
-    const wet = ['rain','storm','snow','drizzle','fog'].includes(c.w.kind);
-    const dim = wet && c.cloud > 80 ? 0.12 : c.cloud > 85 ? 0.25 : 1;
+    // rises from behind the horizon when the scene opens or day turns to night, then glides as the hour changes
+    const target = sunTarget();
+    if (sunP == null || sunNight !== c.night){ sunP = 0; sunNight = c.night; }
+    sunP = reduce ? target : sunP + (target - sunP)*0.05;
+    const {x, y} = sunAt(g, sunP);
+    const k = c.w.kind, wet = ['rain','storm','snow','drizzle','fog'].includes(k);
+    const dim = wet ? 0.12 : k === 'overcast' ? 0.25 : 1;
     const Rs = Math.max(14, W*0.045)*(c.night ? 0.75 : 1);
-    ctx.save(); ctx.globalAlpha = dim;
+    ctx.save();
+    if (!c.night && (k === 'clear' || k === 'cloudy')){
+      // slowly turning rays that breathe
+      ctx.translate(x, y); ctx.rotate(reduce ? 0 : t*0.12); ctx.fillStyle = mixc(P.sun, '#ffcf5a', 0.55);
+      for (let i = 0; i < 12; i++){
+        const a = i/12*Math.PI*2, len = Rs*(2.1 + (reduce ? 0 : 0.35*Math.sin(t*1.8 + i*1.3)));
+        ctx.globalAlpha = 0.42*(k === 'cloudy' ? 0.7 : 1); ctx.beginPath();
+        ctx.moveTo(Math.cos(a - 0.09)*Rs*1.3, Math.sin(a - 0.09)*Rs*1.3);
+        ctx.lineTo(Math.cos(a)*len, Math.sin(a)*len);
+        ctx.lineTo(Math.cos(a + 0.09)*Rs*1.3, Math.sin(a + 0.09)*Rs*1.3);
+        ctx.fill();
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    ctx.globalAlpha = dim;
     [3.2, 2.2, 1.55].forEach((f, i) => {
       ctx.fillStyle = mixc(P.sky[1], P.sun, 0.25 + i*0.2); ctx.globalAlpha = dim*(0.18 + i*0.12)*(1 + (reduce ? 0 : 0.08*Math.sin(t*0.8 + i)));
       ctx.beginPath(); ctx.arc(x, y, Rs*f, 0, 6.29); ctx.fill();
@@ -1358,13 +1446,25 @@ const scene = (() => {
     if (!bolt && Math.random() < 0.005){
       const pts = []; let x = rnd(W*0.1, W*0.6), y = H*0.12;
       while (y < g.groundY){ pts.push([x, y]); x += rnd(-14, 14); y += rnd(10, 22); }
-      bolt = {pts, life: 1}; flash = 1;
+      // a couple of side forks
+      const forks = [0, 1].map(() => {
+        const s = pts[Math.floor(rnd(2, Math.max(3, pts.length*0.6)))] || pts[0], f = [s.slice()];
+        let fx = s[0], fy = s[1], dir = Math.random() < 0.5 ? -1 : 1;
+        for (let j = 0; j < 5; j++){ fx += dir*rnd(6, 16); fy += rnd(8, 16); f.push([fx, fy]); }
+        return f;
+      });
+      bolt = {pts, forks, life: 1}; flash = 1;
     }
     if (flash > 0){ ctx.fillStyle = 'rgba(235,240,255,' + flash*0.5 + ')'; ctx.fillRect(0, 0, W, H); flash -= 0.07; }
     if (bolt){
       ctx.save(); ctx.shadowColor = 'rgba(200,215,255,0.9)'; ctx.shadowBlur = 14;
       ctx.strokeStyle = 'rgba(255,255,255,' + bolt.life + ')'; ctx.lineWidth = 2.2;
-      ctx.beginPath(); bolt.pts.forEach(([x,y], i) => i ? ctx.lineTo(x,y) : ctx.moveTo(x,y)); ctx.stroke(); ctx.restore();
+      ctx.beginPath(); bolt.pts.forEach(([x,y], i) => i ? ctx.lineTo(x,y) : ctx.moveTo(x,y)); ctx.stroke();
+      ctx.lineWidth = 1.2;
+      bolt.forks.forEach(f => { ctx.beginPath(); f.forEach(([x,y], i) => i ? ctx.lineTo(x,y) : ctx.moveTo(x,y)); ctx.stroke(); });
+      ctx.restore();
+      // real lightning flickers: a second flash halfway through
+      if (!bolt.re && bolt.life < 0.55){ bolt.re = true; bolt.life = 0.9; flash = 0.7; }
       bolt.life -= 0.06; if (bolt.life <= 0) bolt = null;
     }
   }
@@ -1421,7 +1521,7 @@ if (state.place.geo || !store.get('place', null)) locate(true);
   const el = $('ptr'), arrow = el.firstChild;
   let y0 = null, pull = 0, busy = false;
   const show = d => { el.style.transform = 'translateY(' + (Math.min(d, 90) - 50) + 'px)'; el.style.opacity = Math.min(1, d/60); arrow.style.transform = 'rotate(' + d*3 + 'deg)'; };
-  addEventListener('touchstart', e => { y0 = !busy && scrollY <= 0 && $('search').hidden ? e.touches[0].clientY : null; pull = 0; }, {passive:true});
+  addEventListener('touchstart', e => { y0 = !busy && scrollY <= 0 && $('search').hidden && !e.target.closest('#hourbar') ? e.touches[0].clientY : null; pull = 0; }, {passive:true});
   addEventListener('touchmove', e => { if (y0 == null) return; pull = Math.max(0, (e.touches[0].clientY - y0)*0.55); show(pull); }, {passive:true});
   addEventListener('touchend', async () => {
     if (y0 == null) return; y0 = null;
