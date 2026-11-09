@@ -138,8 +138,8 @@ footer a{color:var(--accent)}
         <button id="l-en" aria-pressed="false">EN</button>
       </div>
       <div class="unit" role="group" data-i18n-aria="units" aria-label="Единицы скорости">
-        <button id="u-ms" aria-pressed="true" data-i18n="ms">м/с</button>
-        <button id="u-kmh" aria-pressed="false" data-i18n="kmh">км/ч</button>
+        <button id="u-ms" aria-pressed="false" data-i18n="ms">м/с</button>
+        <button id="u-kmh" aria-pressed="true" data-i18n="kmh">км/ч</button>
       </div>
     </div>
   </header>
@@ -561,9 +561,10 @@ function renderHourBar(){
       const tk = document.createElement('span'); tk.textContent = pad(h); tk.style.left = at(h); ticks.appendChild(tk);
     });
     $('hb-bar').style.background = 'linear-gradient(90deg,' + stops.join(',') + ')';
-    const now = new Date(), nowEl = $('hb-now');
+    // "now" at the chosen place, not on the phone's own clock (a place in another time zone)
+    const nowEl = $('hb-now');
     nowEl.hidden = state.day !== 0;
-    nowEl.style.left = at(now.getHours() + now.getMinutes()/60);
+    nowEl.style.left = at(clamp(placeNow().hour, hbMin, hbMax));
   }
   if (+range.value !== state.hour) range.value = state.hour;
   const i = indexFor(state.day, state.hour);
@@ -702,9 +703,13 @@ async function setPlace(p){
   await load();
 }
 
+let loadSeq = 0;
 async function load(){
   $('place-name').textContent = state.place.name;
+  // a slow answer for an earlier place must not replace the place picked after it
+  const seq = ++loadSeq;
   const r = await loadAll(state.place);
+  if (seq !== loadSeq) return;
   state.data = r.data; state.marine = r.marine; state.demo = r.demo;
   [state.autoTerrain, state.terrainWhy] = r.demo ? ['forest', 'пример'] : detectTerrain(r);
   if (state.day >= state.data.daily.time.length) state.day = 0;
